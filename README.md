@@ -1,196 +1,310 @@
-# OpenJobApply
+<h1 align="center">OpenJobApply</h1>
 
-A local, profile-driven job-application assistant. A Python CLI supervises one AI application worker and a local dashboard. Applications use your signed-in Chrome, a reviewed candidate profile, a local PDF resume, and persistent SQLite history. Nothing runs in the cloud.
+<p align="center">
+  <b>A local, profile-driven job-application assistant that never invents an answer.</b><br>
+  Your signed-in Chrome, your résumé, your facts, your machine. Every application is recorded in a ledger, and only an employer-confirmed receipt counts.
+</p>
 
-> **Responsible use.** `start` and `service start` can submit **real** job applications on your behalf. Setup, configuration, diagnostics and status do not submit anything. Many job sites forbid automated applications in their terms of service, and automation can get an account restricted or banned. You are responsible for every application sent, for the accuracy of your profile, and for following each site's terms and the law. Review the dry-run output before you enable live submission. The software is provided as is, with no warranty.
+<p align="center">
+  <a href="https://github.com/sm7/openjobapply/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sm7/openjobapply/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-blue.svg">
+  <img alt="Runs locally" src="https://img.shields.io/badge/runs-100%25%20locally-success.svg">
+  <img alt="No Python dependencies" src="https://img.shields.io/badge/python%20deps-none-success.svg">
+</p>
 
-## Requirements
+> [!WARNING]
+> **`start` and `service start` can submit real job applications on your behalf.** Setup, configuration, `doctor` and `status` never submit anything.
+> Many job sites forbid automated applications in their terms of service, and automation can get an account restricted or banned. You are responsible for every application sent, for the accuracy of your profile, and for following each site's terms and the law. Read [Responsible use](#responsible-use) before you start. The software is provided as is, with no warranty.
 
-- **macOS or Linux, Python 3.10+**, including SQLite and normal POSIX process tools (`ps`). No Python packages need installing.
-- **[Oh My Pi (`omp`)](https://ohmypi.xyz/)** on PATH, authenticated to your model provider. The local installation was checked with omp 18.19.0; `doctor` checks the required unattended-worker flags.
-- Chrome with the **omp browser-relay extension**, signed in to the appropriate job sites. The relay server must be running on its default local port, **9224**.
-- A readable PDF resume and reviewed profile. Do not copy another candidate's identity, answers, permissions or application history.
+---
 
-Install/authenticate omp using its own tooling, then set up Chrome once:
+## Contents
+
+[Why](#why-openjobapply) · [How it works](#how-it-works) · [Safety model](#safety-model) · [Quick start](#quick-start) · [Your profile](#your-profile-the-source-of-truth) · [Running](#running) · [Dashboard](#dashboard) · [Configuration](#configuration) · [Recovery](#recovery-and-evidence) · [Layout](#project-layout) · [Testing](#testing) · [Limits](#status-and-honest-limits) · [Contributing](#contributing)
+
+---
+
+## Why OpenJobApply
+
+Most "auto-apply" tools optimise for volume. They guess answers, click through anything and tell you how many applications they sent. OpenJobApply optimises for **truthful, auditable applications**:
+
+- **Facts come from one file.** `profile.json` holds your identity, work history, confirmed answers and permissions. If a form asks for something the file does not hold, the worker **stops and tells you the exact question**. It does not guess.
+- **A job is applied to at most once.** A reservation is made before the final Submit, duplicates are checked across job id, URL and source id, and a crash after Submit leaves a trace that blocks a blind retry.
+- **Only a real receipt counts.** A timeout, an upload or a reservation is never counted as a success. A job is `applied` only with an active reservation and recorded employer-confirmation evidence.
+- **It moves like a person.** Page loads, job details and submissions are paced, and real platform lockouts are remembered across restarts.
+- **Everything stays on your machine.** A Python CLI, a SQLite file and a loopback-only dashboard. No account, no cloud, no telemetry.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Discover jobs<br/>LinkedIn, Indeed] --> B[Score and screen<br/>against your profile]
+    B -->|rejected| X[(Skipped, with reason)]
+    B -->|eligible| C[Queue]
+    C --> D[Worker opens the form<br/>in your Chrome]
+    D --> E{Every required<br/>question answered<br/>from your profile?}
+    E -->|no| M[(Manual: exact question<br/>shown in the dashboard)]
+    E -->|yes| F[Dry run and review]
+    F --> G[Reserve a submit slot]
+    G --> H[Pacing gate]
+    H --> I[Click Submit once]
+    I --> J{Employer receipt<br/>on screen?}
+    J -->|yes| K[(Applied + evidence)]
+    J -->|no| M
+```
+
+Three processes cooperate. They share a SQLite database and a few small files, and never call each other directly:
+
+| Process | Role |
+|---|---|
+| **Supervisor** (`campaign.py loop`) | Holds a singleton lock, starts one AI worker per round, enforces a deadline, cleans up the worker's whole process tree, and turns any unresolved reservation into a *manual* outcome. |
+| **Worker** (the [`omp`](https://ohmypi.xyz/) agent) | Drives your real Chrome through the omp browser relay. It reads `profile.json`, fills forms through the adapters and calls the controller commands `reserve`, `gate` and `result`. |
+| **Dashboard** (`campaign_monitor.py`) | A loopback-only web page that shows progress, logs, receipts and blocked jobs. |
+
+Supported applications: LinkedIn Easy Apply, plus employer sites through adapters for **ADP, Greenhouse, Lever, Workday, iCIMS, SmartRecruiters and Ashby**. Any other site gets a generic read-only dry run, and the worker may finish it by hand under the same rules.
+
+## Safety model
+
+| Guarantee | How it is enforced |
+|---|---|
+| No guessing | Answers come from `profile.json` through a rule engine. An unknown required question ends the job as *manual* with its exact wording. |
+| One application per job | `reserve` runs in one `BEGIN IMMEDIATE` transaction and checks job id, URL and source id against every applied job and open reservation. |
+| Reservation before Submit | An `applied` outcome is accepted only while a `reserved` row exists for that job. |
+| Receipt required | `applied` needs non-empty evidence. The adapters return `applied` only on confirmation text. iCIMS also requires that no fields and no Submit control remain. |
+| Crash safety | After a crash, every open reservation becomes *manual*, never *applied*, and is never retried automatically. |
+| Pacing and lockouts | 8 to 20 s between page loads, 60 to 180 s before a submit, 90 s or more per employer host. Challenges lock a host for 30 min, 2 h, 12 h, then 24 h. LinkedIn challenges lock for 6 h. State survives restarts. |
+| No consents by default | Marketing, job alerts, arbitration, non-competes, background, drug and credit checks and legal releases are never accepted unless a reviewed grant in your profile covers the exact scope. |
+| Demographic questions | The worker declines to self-identify. Only two reviewed Yes/No facts can be used when a form offers no decline option. |
+| No secrets in config | Employer passwords go through a hidden prompt into an owner-only vault file. Nothing secret is placed in the profile, in arguments or in logs. |
+| Private dashboard | Loopback only. Every route checks the `Host` header, which defeats DNS rebinding. The two write routes also require a per-install token, a matching `Origin` and a JSON body. |
+
+**What this model does not promise.** The worker is an AI agent with shell access. The controller, the adapters and the database enforce the rules above, but a worker that ignores its instructions could still misbehave in a way the code cannot see. Treat it like a capable assistant you supervise, not like a sandbox. See [Status and honest limits](#status-and-honest-limits).
+
+## Quick start
+
+### 1. Prerequisites
+
+- macOS or Linux, **Python 3.10+**. There are no Python packages to install.
+- **[Oh My Pi (`omp`)](https://ohmypi.xyz/)** on your `PATH`, signed in to your model provider. Checked with omp 18.19.0.
+- **Chrome** with the omp browser-relay extension, signed in to the job sites you want to use.
+- A PDF résumé.
 
 ```sh
 omp login
-omp browser-relay install
+omp browser-relay install     # load the printed folder in chrome://extensions
+omp browser-relay             # keep this running (default port 9224)
 ```
 
-Load the unpacked extension in `chrome://extensions` using the directory printed by the installer. Run the relay and keep it available:
+### 2. Get the code
 
 ```sh
-omp browser-relay
+git clone https://github.com/sm7/openjobapply.git
+cd openjobapply
 ```
 
-Applications need an awake machine, a usable logged-in desktop session, Chrome and the relay. This is not a cloud service. Without the relay the supervisor waits safely; provider-authentication failures are reported rather than treated as submitted applications.
-
-## Setup
-
-Run these commands from the project folder, or invoke `jobapp.py` by its absolute path. Paths inside configuration are resolved relative to the project, not the shell's current directory; `~` is expanded for the local user.
-
-Copy the example profile and fill in **every** field you can confirm. `profile.json` is the single source of truth for your identity, answers and permissions, and it is gitignored:
+### 3. Fill in your profile
 
 ```sh
-cp profile.example.json profile.json
+cp profile.example.json profile.json     # then edit profile.json
 python3 jobapp.py setup --resume /path/to/resume.pdf
 python3 jobapp.py config validate
 python3 jobapp.py doctor
+```
+
+Until the profile is complete the project is **non-submittable**: `validate`, `doctor` and `start` refuse and name the field that is missing. See [Your profile](#your-profile-the-source-of-truth).
+
+### 4. Check the state before you apply
+
+```sh
 python3 jobapp.py status
 ```
 
-Without a filled-in profile, the project stays **incomplete and non-submittable**. Before starting, provide real full/first/last names, email, phone, country, location, work-authorization description, explicit sponsorship answer, local PDF and nonempty search queries. Review the remaining job preferences, experience, standing answers and permissions as well. `null` means unknown: a form that asks for an unknown fact stops for you. Missing facts are never invented.
+Start with a small target, for example `python3 jobapp.py config set campaign.target_total 3`. Watch the first rounds in **Live logs**, and check each submission in **Applied jobs**.
 
-Setup creates missing files/directories only. It refuses to overwrite a different candidate or approved resume, and does not reset the database, receipts, pacing history or platform lockouts. Keep a separate project copy/history for each candidate.
-
-## Run
-
-### Foreground: macOS or Linux
+### 5. Start
 
 ```sh
-python3 jobapp.py start
+python3 jobapp.py start          # supervisor and dashboard in this terminal
+# dashboard: http://127.0.0.1:8765
 ```
 
-The supervisor and dashboard run in this terminal. Ctrl-C performs bounded worker cleanup; interrupted submissions remain quarantined until evidence is reviewed. `start --no-dashboard` runs only the supervisor. Starting again while its singleton lock is held does not launch a second worker or restart the existing one.
+Stop at any time with `Ctrl-C` or `python3 jobapp.py stop`. History is kept.
 
-Dashboard: **http://127.0.0.1:8765** by default, loopback-only. **Overview** and **Live logs** are read-only and distinguish actual worker activity from service heartbeat; liveness is not proof of a submission. **Manual jobs** is the one tab that can change state; see below.
+## Your profile: the source of truth
 
-From another terminal:
+`profile.example.json` lists **every fact the program can use**. Copy it to `profile.json` (gitignored) and fill in what you can confirm.
+
+> **`null` means unknown.** A form that asks about an unknown fact stops for you. Never fill in a value you cannot stand behind.
+
+| Section | What it holds |
+|---|---|
+| `candidate` | Name, email, phone, address, LinkedIn, résumé path, work authorization, sponsorship, citizenship. |
+| `preferences` | Location mode, remote, salary floor and expectation, travel, relocation, employment types. |
+| `search` | Queries, title words to include and exclude, skills, maximum years of experience required. |
+| `search` (scoring words) | `core_title_words`, `role_words`, `context_words`, `domain_words` and `title_out_of_lane` describe **your** field. The scorer reads them and nothing about your field is built into the code. |
+| `answers` | Confirmed answers to common screening questions: work history, education, compliance Yes/No facts, consents, years of experience per skill. |
+| `answers.reviewed_questions` | `{ "exact question as the employer words it": answer }`. Matched exactly, never by keyword. |
+| `application_permissions` | Account creation, password reset, Google sign-in and mailbox verification. All `false` by default. |
+| `application_instructions` | Free-text exceptions that apply to one exact job. They cannot waive any safety protection. |
+
+Your home state is read from `candidate.state` or from the end of `candidate.location`, so a residency rule such as "we cannot hire in Texas" applies to **your** state and no other.
+
+Salary ranges use their **midpoint**, not the maximum. Unknown salary follows `preferences.unknown_salary` (`allow` or `reject`).
+
+A reviewed answer is a fact you vouch for. If one is wrong, the engine repeats it on every matching question, so review those entries carefully. Reviewed answers never settle consent, background-check, legal-release or identity questions.
+
+## Running
+
+### Foreground
 
 ```sh
-python3 jobapp.py status --json
+python3 jobapp.py start                 # supervisor + dashboard
+python3 jobapp.py start --no-dashboard  # supervisor only
+python3 jobapp.py status --json         # from another terminal
 python3 jobapp.py stop
 ```
 
-`stop` requests a graceful application stop, retaining all history. A separately installed dashboard stays available; a foreground dashboard exits with its foreground supervisor.
+`Ctrl-C` performs a bounded cleanup of the worker. An interrupted submission stays quarantined until you have checked the employer's side. Starting a second time while the lock is held never launches a second worker.
 
-### Background user service
+### Background service
 
 ```sh
-python3 jobapp.py service install
-python3 jobapp.py service start
+python3 jobapp.py service install     # writes the definitions, starts nothing
+python3 jobapp.py service start       # idempotent, never restarts a live worker
 python3 jobapp.py service status
-```
-
-- **macOS:** user LaunchAgents under `~/Library/LaunchAgents`.
-- **Linux:** `systemd --user` units under `~/.config/systemd/user`. A functioning systemd user session is required; otherwise use foreground `start`.
-
-Install writes/registers owned definitions but does not start applications. Start is idempotent and never restarts an already-active application. The application service restarts on failure, not on successful completion or explicit stop. The dashboard is supervised independently. No `sudo` is used.
-
-```sh
 python3 jobapp.py service stop
-python3 jobapp.py service uninstall
+python3 jobapp.py service uninstall   # removes only its own definitions
 ```
 
-These stop both owned services; uninstall also removes only their owned definitions, not project data. Foreign service files/loaded jobs are refused. Use a distinct `campaign.runtime.service_name` for each separately deployed project.
+- **macOS:** user LaunchAgents in `~/Library/LaunchAgents`.
+- **Linux:** `systemd --user` units in `~/.config/systemd/user`. A working user session is required. Otherwise use the foreground mode.
 
-After deliberately changing a service definition, update it explicitly:
+No `sudo` is ever used. Give each separately deployed copy its own `campaign.runtime.service_name`.
 
-```sh
-python3 jobapp.py service install --replace
-```
+The machine must stay awake, with a usable desktop session, Chrome and the relay running. Without the relay the supervisor waits and starts no worker. After you update the Python source, restart the supervisor **at an idle moment, never during an uncertain Submit**.
 
-This does not restart a live worker. A dashboard-port change needs an explicit stop/start to replace the loaded monitor. Updating Python source also requires a supervisor restart; do that at an idle boundary, never during an uncertain Submit. Do not move/delete a project directory while its installed services are running.
+## Dashboard
 
-## Configure
+Open **http://127.0.0.1:8765**. It binds to loopback only.
 
-Two files remain authoritative:
+| Tab | Purpose |
+|---|---|
+| **Overview** | Target and progress, current activity, pacing and supervisor health. Liveness is not proof of a submission. |
+| **Applied jobs** | Every confirmed application with its confirmation sentence and receipt screenshot. |
+| **Manual jobs** | Jobs the worker could not finish, with the exact reason and whether an application *may* have reached the employer. Add answers and queue the job again. |
+| **Skipped jobs** | Jobs the scorer or the worker skipped, with the reason and a duplicate-risk warning. Request a fresh review of one. |
+| **Live logs** | Metadata-only events. Raw worker output, credentials and receipt text never appear. |
 
-- **`profile.json`** — candidate identity, resume, geography, salary, search queries, confirmed answers and permissions.
-- **`data/campaign.json`** — submission target, model, caps, priorities, recovery batch and runtime settings.
+Overview, Applied jobs and Live logs are read-only. Manual jobs and Skipped jobs each have one write route, guarded by the checks above. Saving an answer queues a job again in the **same database transaction**, so a rejected request never leaves an orphan answer. It never submits anything by itself.
+
+## Configuration
+
+Two files are authoritative: **`profile.json`** (you) and **`data/campaign.json`** (the run: target, model, caps, priorities, runtime).
 
 ```sh
 python3 jobapp.py config show profile
-python3 jobapp.py config show campaign
 python3 jobapp.py config set profile.preferences.min_salary_usd 75000
-python3 jobapp.py config set profile.preferences.salary_expectation_usd 90000
-python3 jobapp.py config set profile.search.queries '["healthcare data analyst", "population health analyst"]'
-python3 jobapp.py config set campaign.target_total null
+python3 jobapp.py config set profile.search.queries '["data analyst", "business intelligence analyst"]'
+python3 jobapp.py config set campaign.target_total 50          # null = continuous, 0 = closed
 python3 jobapp.py config set campaign.worker_model 'provider/model-id'
-python3 jobapp.py config set campaign.max_submissions_per_day null
 python3 jobapp.py config validate
 ```
 
-Values accept JSON numbers, booleans, arrays, objects and `null`; unquoted non-JSON values are strings. Writes are validated, serialized and atomically replaced. Invalid changes leave the previous file intact. Updating either salary-expectation field through the CLI updates its paired preference/answer in the same file, avoiding conflicting form answers.
+Writes are validated, serialised and atomically replaced. An invalid change leaves the old file untouched.
 
-Known salary ranges use their **midpoint**, not the maximum. Unknown salary follows `preferences.unknown_salary` (`allow` or `reject`). Candidate-specific exceptions belong in reviewed `application_instructions`, scoped to an exact job. Configuration cannot waive receipt, duplicate, reservation, CAPTCHA or sensitive-data protections. Only automatic submission mode is implemented; unsupported mode/range-rule values are rejected rather than silently ignored.
+- **Caps:** `null` means unlimited and `0` disables the action. Action spacing, reservations, duplicate checks, receipts and platform lockouts are enforced whatever the caps say.
+- **Runtime:** `worker_timeout_seconds`, `success_pause_seconds`, `idle_pause_seconds`, `dashboard_port`, `service_name` and `credentials_file` live under `campaign.runtime`. Changes apply at the next worker round, and a running form is never interrupted.
+- **Employer passwords:** `python3 jobapp.py credential employer.example --email you@example.com` reads the password from a hidden prompt. It is never an argument.
 
-Runtime settings live under `campaign.runtime`:
-
-| Setting | Purpose |
-|---|---|
-| `omp_executable` | PATH name or explicit executable path |
-| `worker_timeout_seconds` | Both worker CLI time limit and supervisor deadline |
-| `success_pause_seconds` | Between-round pause after a confirmed submission |
-| `idle_pause_seconds` | Between-round pause without a confirmed submission |
-| `dashboard_port` | Local dashboard port |
-| `service_name` | Unique local service namespace |
-| `credentials_file` | Owner-only employer vault location; never its contents |
-
-```sh
-python3 jobapp.py config set campaign.runtime.worker_timeout_seconds 1200
-python3 jobapp.py config set campaign.runtime.idle_pause_seconds 300
-python3 jobapp.py config set campaign.runtime.dashboard_port 8765
-```
-
-An upgraded supervisor reloads model, executable, deadline, profile and credential-path settings at each worker round. Between-round waits re-read their configured duration. A running form is not interrupted to apply configuration changes. Numeric caps use **`null` for unlimited** and **zero to disable** the action; target zero closes the campaign. **`campaign.target_total: null` enables continuous operation without a total application cap**; status reports `target` and `remaining` as `null` and `complete` as `false`. Finite nonnegative integer targets remain supported (default: `50`). Action spacing and real platform lockouts always remain enforced. Some host/run policies are worker/ATS-enforced, not additional global controller counters.
-
-### Permissions and secrets
-
-New profiles grant no account/reset/Google/mailbox permissions by default. Grant only actions actually authorized by the candidate:
-
-```sh
-python3 jobapp.py config set profile.application_permissions.account_creation true
-python3 jobapp.py config set profile.application_permissions.password_reset true
-python3 jobapp.py config set profile.application_permissions.google_sign_in true
-python3 jobapp.py config set profile.application_permissions.mailbox_verification true
-```
-
-The current account helper couples creation and reset, so that helper path requires **both** grants. Employer-specific restrictions in `application_instructions` still override general grants. Privacy/accuracy attestations require `campaign.standard_application_privacy_and_accuracy_attestation`; separate binding agreements and background/drug/credit checks remain excluded.
-
-Keep passwords, provider keys and tokens **out of configuration, command arguments, logs and chat**. Store an employer password through the hidden terminal prompt:
-
-```sh
-python3 jobapp.py credential employer.example --email candidate@example.com
-```
-
-This uses the configured vault path and never accepts a password argument. Model-provider authentication remains in omp's own auth storage. `doctor` does not inspect the vault or test provider authentication with a paid request. Its warnings identify checks not performed; `doctor --offline --json` skips the relay connection check too.
-
-Profile, resumes, state and logs are private and gitignored. When moving computers, review configuration and authenticate the new local browser/provider; do not publish or blindly copy auth stores.
+The full reference is in [`docs/configuration.md`](docs/configuration.md).
 
 ## Recovery and evidence
 
-SQLite history, reservations, pacing history and explicit employer receipts survive restarts. The supervisor enforces a singleton worker, bounded lifetime and owned-descendant cleanup. A timeout/upload/reservation is never counted as a successful submission. Unknown required facts, actual CAPTCHA/MFA and ambiguous legal eligibility are recorded blockers, not guesses.
+SQLite history, reservations, pacing state and receipts survive restarts. Two operator commands exist for reviewed recovery, and neither bypasses a safety rule:
 
-Operator-reviewed recovery uses the existing controller:
+- `python3 src/campaign.py requeue JOB_ID` returns a job to the queue. It needs a `reason`, `evidence` and `submission_verified_absent: true`, and it rejects any job that is applied or has an active equivalent.
+- `python3 src/campaign.py reconcile JOB_ID` records a receipt you verified by hand for a manual or failed attempt **without resending**.
 
-- `python3 src/campaign.py requeue JOB_ID`: JSON stdin with nonempty `reason`, `evidence` and `submission_verified_absent: true`. Use only after a documented pre-submission failure or inspected unsent draft/history establishes no application was sent. Applied/active equivalents are rejected and old history retained.
-- `python3 src/campaign.py reconcile JOB_ID`: JSON stdin with `employer_confirmation_verified: true`, `reason` and actual receipt `evidence`. Records a verified historical receipt for a manual/failed attempt with a finished reservation **without resending**; same-job replay is idempotent.
+If a job shows **"May have been submitted"**, check the employer's account before you queue it again. Missing evidence is not proof that nothing was sent.
 
-Neither command bypasses submission safety. `manual_recovery_job_ids` and its request timestamp define a finite reviewed batch, rather than endless retries of genuine blockers. Recovery events are visible in Live logs without exposing raw receipt evidence, credentials or private worker output.
+## Project layout
 
-### Manual jobs tab
-
-The dashboard's **Manual jobs** tab lists every job the campaign could not finish, with the reason it stopped (sanitized: URLs, emails and secrets are redacted). Each job shows one of two states:
-
-- **Not submitted:** the worker stopped before reserving a submit slot, so no final Submit was attempted.
-- **May have been submitted:** a submit slot had been reserved, so an application might have reached the employer. Missing evidence is not proof of absence.
-
-Choose **Add answers and resubmit**, enter each question as the employer words it with your answer, and save. The job is queued and the answers are stored with it **in the same database transaction**, so a rejected request never leaves orphaned answers. A job that may have been submitted additionally requires you to tick a confirmation that you checked the employer account and no application was received.
-
-Saved answers are data for the worker, delivered each round only for jobs still waiting to be applied to. The worker uses one only for that exact job and only when a form asks that exact question. They never override consent limits or the duplicate, reservation, pacing and receipt protections, and a question you did not answer still stops the job with its exact wording, so you can add it. Resubmitting never submits an application by itself.
-
-**Answers are not code changes.** Saving an answer here does not generalize it to other employers, and does not change the answer engine. A recurring question is better handled as a reviewed standing answer in `profile.json`, with a rule and test in `src/ats/answers.js`. Automated, reviewed code updates from a resubmission are intentionally not implemented yet.
-
-Every dashboard route, reads included, first requires the request's Host to be the dashboard's own loopback address, which defeats DNS rebinding. Without that, a hostile web page could fetch the dashboard under its own hostname, copy the write token out of the page, and use it. This is the only route that changes state. It additionally requires any Origin to be the dashboard itself, a JSON body, and the per-install secret in `data/monitor-token` (mode 0600, created on first start, never logged, embedded only in the dashboard page). Everything else is refused before the database is touched.
-
-Code layout: `src/manual_jobs.py` holds the rules, `src/monitor_security.py` the request guard, `src/manual_jobs_ui.py` the tab's markup/styles/script, and `src/campaign_monitor.py` only routes. `campaign.requeue` stays the single place a job returns to the queue.
-
-## Verification
-
-```sh
-python3 -m unittest discover -s test -p 'test_*.py'
+```text
+jobapp.py            CLI: setup, config, doctor, start, stop, status, service, credential
+profile.example.json the template for every fact you provide
+src/
+  campaign.py        controller and supervisor: reserve, gate, result, requeue, reconcile
+  score.py           hard filters and fit score, driven by your profile
+  ingest.py          index, dedupe and score discovered jobs  (--report, --why JOB_ID)
+  ats/               answer engine, form filler, pacing and the ATS adapters
+  campaign_monitor.py, *_ui.py   the loopback dashboard
+  CAMPAIGN_WORKER.md the worker's instructions
+test/                Python tests and browser-fixture tests, all with fictional data
+docs/                architecture, safety model, dashboard, configuration, testing, known gaps
+scripts/             docs checker and the privacy scan
 ```
 
-Tests use isolated state and simulated workers/managers, not real applications. The Python tests need only the standard library. The JavaScript fixture tests under `test/fixtures/ats/` need [Bun](https://bun.sh); the browser fixtures also need the `omp` `browser` global and are run from an `omp` eval cell, as described in each test's header. All test data is fictional and comes from `test/fixtures/profile.fixture.json`. Linux service lifecycle/escaping is fixture-tested; native Linux execution has not been exercised by the maintainers.
+Start with [`docs/architecture.md`](docs/architecture.md), then [`docs/safety-model.md`](docs/safety-model.md). The index is [`docs/README.md`](docs/README.md).
+
+## Testing
+
+```sh
+python3 -m unittest discover -s test -p 'test_*.py'     # 337 tests, standard library only
+python3 scripts/check_docs.py
+python3 scripts/check_privacy.py
+bun test/fixtures/ats/answers_standing.test.js           # answer rules, no browser
+bun test/fixtures/ats/answers_consents.test.js
+bun test/fixtures/ats/pacing.test.js
+```
+
+The Python suite has run on Python 3.10, 3.12 and 3.15. CI runs it on Linux and macOS across Python 3.10 to 3.13.
+
+The browser fixture suites (`run.js`, `icims`, `workday`, `sr_ashby`, `account*`) drive fake employer pages through the `omp` `browser` global and are run from an `omp` eval cell, as each test's header explains. **No test submits a real application**, and all test data is fictional (`test/fixtures/profile.fixture.json`).
+
+## Status and honest limits
+
+- **Built around one real workflow.** The engine was developed against one candidate's real applications and then generalised. Candidate facts now live in the profile and a test fails if a home state, city or field returns to the source. Some question templates in `src/ats/answers.js` come from that history. They are inert unless your profile holds the matching fact, and you can replace them with `reviewed_questions`.
+- **macOS first.** The author ran it on macOS. Linux support, including `systemd --user`, is fixture-tested and runs in CI, but it has not had a long live run.
+- **Employer forms change.** The adapters use fixtures, not live pages. A redesign can break one. The result should be a *manual* outcome with the exact blocker, not a wrong submission.
+- **The scorer is rule-based.** It can reject a good job or accept a poor one. `python3 src/ingest.py --report` shows why jobs were rejected and `--why JOB_ID` shows the text behind one decision.
+- **The worker is an AI agent.** See [Safety model](#safety-model). Read the dry run, start with a small `target_total`, and watch the dashboard.
+- **Not a cloud service.** It needs an awake machine, a logged-in desktop session, Chrome and the relay.
+
+Known gaps are listed candidly in [`docs/known-gaps.md`](docs/known-gaps.md).
+
+## Responsible use
+
+- Use it only for your own applications and only where automation is allowed. Check the terms of every site you point it at.
+- Do not use it to submit false information. Everything it types comes from your profile, so keep that file accurate.
+- Start with a low target and with `max_submissions_per_day` set, and keep the default pacing.
+- Do not remove the pacing, the reservation or the receipt checks to go faster.
+- Never copy another person's profile, answers, permissions or application history.
+
+## FAQ
+
+**Does it write my answers with an AI model?** No. Answers come from your profile through fixed rules. The model drives the browser and follows the worker instructions, but an answer that is not in the profile stops the job.
+
+**Where does my data go?** Nowhere beyond the sites you apply to and your model provider, which sees whatever the worker's session contains. The profile, database, résumé and logs stay on your disk and are gitignored.
+
+**Why does it stop so often at first?** Every unknown required question stops the job on purpose. Answer each one once, in the dashboard for that job or in `answers.reviewed_questions` for every job, and the number of stops falls quickly.
+
+**Can I run it for several people?** Keep one project folder, database and `service_name` per candidate.
+
+**Can I stop it safely?** Yes. `Ctrl-C` or `python3 jobapp.py stop` ends the worker cleanly and keeps all history. An unresolved submission is quarantined until you review it.
+
+## Contributing
+
+Issues and pull requests are welcome.
+
+1. Fork, branch and run the tests above.
+2. **Use only fictional data** in tests and docs: the persona is Jane Doe, with `example.com` addresses and 555-01xx phone numbers. `python3 scripts/check_privacy.py` must report 0 findings. You can list your own name and employers in a gitignored `.privacy-denylist`, one per line, to catch accidental leaks.
+3. Keep candidate facts out of `src/`. They belong in `profile.json`.
+4. Add a test for each behaviour change. A rule that answers a question needs a near-miss test showing what it must **not** answer.
+5. Docs follow a short plain-English style. `python3 scripts/check_docs.py` checks the mechanical rules.
+
+Please report a security problem privately to the maintainer rather than in a public issue.
+
+## License
+
+[MIT](LICENSE). The software is provided "as is", without warranty of any kind. You alone are responsible for how you use it.

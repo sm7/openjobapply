@@ -14,7 +14,7 @@ Read `architecture.md` first. Then read `modules.md`.
 | [modules](modules.md) | One section for each source file, script and adapter. |
 | [operations](operations.md) | How to operate the system. |
 | [configuration](configuration.md) | The configuration files and settings. |
-| [dashboard](dashboard.md) | The dashboard and its four tabs: Overview, Applied jobs, Manual jobs and Live logs. |
+| [dashboard](dashboard.md) | The dashboard and its five tabs: Overview, Applied jobs, Manual jobs, Skipped jobs and Live logs. |
 | [safety-model](safety-model.md) | The safety rules of the system. |
 | [decisions](decisions.md) | The design decisions. |
 | [changelog](changelog.md) | The history of changes. |
