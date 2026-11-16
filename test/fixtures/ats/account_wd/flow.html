@@ -1,0 +1,159 @@
+<!doctype html>
+<!-- Local fixture: Workday job -> Apply -> Start Your Application -> Apply Manually -> ACCOUNT WALL, with the pages the
+     authorized account flow walks through (all fake; nothing leaves the machine). Served by account_wd_icims.test.js at /wd/.
+       ?scenario=create          create-account form (email, password, verifyPassword, account-terms tickbox) -> My Information
+       ?scenario=create_verify   as create, but the site then asks to verify the email; ?view=verified is the emailed link
+       ?scenario=signin          sign-in page of an EXISTING account (password unknown) with "Forgot your password?"
+                                 -> forgot form -> "reset link sent" -> ?view=reset (new password + verify) -> sign-in -> My Information
+       ?scenario=signin_chooser  as signin, but the page FIRST shows only "Sign in with Google" and "Sign in with email"
+                                 (seen live on a Workday tenant); "Sign in with email" reveals the email + password form
+       ?scenario=signin_chooser_native   same chooser, with a native input button whose accessible label differs from its visible value
+       ?view=job|signin|create|forgot|sent|reset|verified   start on a view directly
+     Events are POSTed to /__log (survive navigations). Passwords are NEVER sent to the log: only lengths / equality. -->
+<html lang="en"><head><meta charset="utf-8"><title>Careers | Workday account fixture</title>
+<style>
+ body{font-family:sans-serif;margin:0;padding:16px} main{max-width:760px;margin:0 auto} [hidden]{display:none!important}
+ .ff{margin:10px 0} label{display:block;margin:6px 0 2px} label.inl{display:inline} input[type=text],input[type=password],input[type=email]{width:320px;padding:4px}
+ button{padding:6px 10px} #errs{color:#b00;border:1px solid #b00;padding:8px;margin:8px 0}
+</style></head>
+<body>
+<header>
+  <button type="button" id="talent">Join Talent Community</button>
+  <button type="button" id="alerts">Create Job Alert</button>
+</header>
+<main>
+<div id="errs" data-automation-id="errorBanner" role="alert" hidden></div>
+
+<section id="job"><h1>Registered Nurse - Care Coordination</h1><p>Req 12345. Boston, MA.</p>
+  <a href="#" role="button" id="apply" data-automation-id="adventureButton">Apply</a></section>
+
+<section id="choice" role="dialog" aria-label="Start Your Application" hidden>
+  <h2>Start Your Application</h2>
+  <a href="#" role="button" id="autofill" data-automation-id="autofillWithResume">Autofill with Resume</a><br>
+  <a href="#" role="button" id="manual" data-automation-id="applyManually">Apply Manually</a>
+</section>
+
+<section id="signin" data-automation-id="signInContent" hidden>
+  <h2>Sign In</h2>
+  <div id="si-chooser" hidden>
+    <button type="button" id="si-google">Sign in with Google</button>
+    <button type="button" id="si-viaemail">Sign in with email</button>
+    <input type="button" id="si-viaemail-native" aria-label="Use email to sign in" value="  Sign in with email  " hidden>
+  </div>
+  <div id="si-form">
+    <div class="ff"><label for="si-email">Email Address*</label><input type="email" id="si-email" data-automation-id="email"></div>
+    <div class="ff"><label for="si-pw">Password*</label><input type="password" id="si-pw" data-automation-id="password"></div>
+    <button type="button" id="si-submit" data-automation-id="signInSubmitButton">Sign In</button>
+  </div>
+  <p><a href="#" role="link" id="si-forgot" data-automation-id="forgotPasswordLink">Forgot your password?</a></p>
+  <p>Don't have an account? <a href="#" role="button" id="si-create" data-automation-id="createAccountLink">Create Account</a></p>
+</section>
+
+<section id="create" hidden>
+  <h2>Create Account</h2>
+  <div class="ff"><label for="ca-email">Email Address*</label><input type="email" id="ca-email" data-automation-id="email"></div>
+  <div class="ff"><label for="ca-pw">Password*</label><input type="password" id="ca-pw" data-automation-id="password"></div>
+  <div class="ff"><label for="ca-vpw">Verify New Password*</label><input type="password" id="ca-vpw" data-automation-id="verifyPassword"></div>
+  <div class="ff"><input type="checkbox" id="ca-terms" data-automation-id="createAccountCheckbox"><label class="inl" for="ca-terms">I have read and agree to the Terms and Conditions</label></div>
+  <div class="ff"><input type="checkbox" id="ca-mkt"><label class="inl" for="ca-mkt">Email me about job alerts and marketing</label></div>
+  <button type="button" id="ca-submit" data-automation-id="createAccountSubmitButton">Create Account</button>
+  <p>Already have an account? <a href="#" id="ca-signin">Sign In</a></p>
+  <p><a href="#" id="ca-forgot">Forgot your password?</a></p>
+</section>
+
+<section id="forgot" hidden>
+  <h2>Forgot Password</h2>
+  <p>Enter your email address and we will send you a link to reset your password.</p>
+  <div class="ff"><label for="fp-email">Email Address*</label><input type="email" id="fp-email" data-automation-id="email"></div>
+  <button type="button" id="fp-submit" data-automation-id="resetPasswordSubmitButton">Reset Password</button>
+</section>
+
+<section id="sent" hidden>
+  <h2>Check your email</h2>
+  <p>A link to reset your password has been sent to your email address.</p>
+</section>
+
+<section id="verify" hidden>
+  <h2>Verify your email</h2>
+  <p>We sent a link to verify your account. Check your email to continue.</p>
+</section>
+
+<section id="reset" hidden>
+  <h2>Set a new password</h2>
+  <div class="ff"><label for="rs-pw">New Password*</label><input type="password" id="rs-pw" data-automation-id="password"></div>
+  <div class="ff"><label for="rs-vpw">Verify New Password*</label><input type="password" id="rs-vpw" data-automation-id="verifyPassword"></div>
+  <button type="button" id="rs-submit" data-automation-id="resetPasswordSubmitButton">Submit</button>
+</section>
+</main>
+<script>
+ const params = new URLSearchParams(location.search);
+ const SCEN = params.get('scenario') || 'create';
+ const $ = (id) => document.getElementById(id);
+ const L = (k, v) => fetch('/__log', { method: 'POST', body: JSON.stringify({ k, v }), keepalive: true });
+ const err = (m) => { $('errs').textContent = m; $('errs').hidden = false; };
+ const EMAIL = 'jane.doe@example.com';
+ const APP = '/workday/flow.html?start=step1';
+
+function show(id) {
+  for (const s of document.querySelectorAll('main > section')) s.hidden = !(s.id === id || (id === 'choice' && s.id === 'job'));
+  if (id === 'signin') {
+    const chooser = chooserMode();
+    $('si-chooser').hidden = !chooser;
+    $('si-form').hidden = chooser;
+    $('si-viaemail').hidden = SCEN === 'signin_chooser_native';
+    $('si-viaemail-native').hidden = SCEN !== 'signin_chooser_native';
+    $('si-forgot').parentElement.hidden = chooser;
+    $('si-create').parentElement.hidden = chooser;
+  }
+  $('errs').hidden = true;
+  L('show', id);
+}
+ $('apply').onclick = (e) => { e.preventDefault(); L('click', 'apply'); show('choice'); };
+ $('manual').onclick = (e) => { e.preventDefault(); L('click', 'applyManually'); show(SCEN.startsWith('signin') ? 'signin' : 'create'); };
+ $('autofill').onclick = (e) => { e.preventDefault(); L('BAD_CLICK', 'autofillWithResume'); };
+ for (const id of ['talent', 'alerts', 'si-google']) $(id).onclick = (e) => { e.preventDefault(); L('FORBIDDEN_CLICK', id); };
+ $('si-viaemail').onclick = (e) => { e.preventDefault(); L('CHOSE_EMAIL', 1); sessionStorage.setItem('chose_email', '1'); show('signin'); };
+ $('si-viaemail-native').onclick = $('si-viaemail').onclick;
+ for (const id of ['ca-signin', 'ca-forgot']) $(id).onclick = (e) => { e.preventDefault(); L('BAD_CLICK', id); };
+ // chooser scenario: only the two provider buttons are visible until "Sign in with email" is pressed (state survives the in-page view switch)
+ const chooserMode = () => SCEN.startsWith('signin_chooser') && !sessionStorage.getItem('chose_email');
+ for (const id of ['ca-mkt']) $(id).onchange = () => L('MARKETING_TICKED', $(id).checked);
+
+ // create account
+ $('ca-submit').onclick = () => {
+   const em = $('ca-email').value, pw = $('ca-pw').value, vp = $('ca-vpw').value;
+   if (!em || !pw) return err('Email and password are required');
+   if (pw !== vp) { L('ACCOUNT_REJECTED', 'mismatch'); return err('Passwords do not match'); }
+   if (!$('ca-terms').checked) { L('ACCOUNT_REJECTED', 'terms'); return err('You must accept the terms'); }
+   sessionStorage.setItem('acct_pw', pw); // fake page-side storage so the fixture can check the later login
+   L('ACCOUNT_CREATED', { email: em, pwLen: pw.length, match: true, terms: true, marketing: $('ca-mkt').checked });
+   if (SCEN === 'create_verify') show('verify'); else location.href = APP;
+ };
+
+ // existing account: sign in, forgot password, reset
+ $('si-forgot').onclick = (e) => { e.preventDefault(); L('FORGOT_CLICK', 1); show('forgot'); };
+ $('si-create').onclick = (e) => { e.preventDefault(); L('BAD_CLICK', 'createAccountOnExisting'); };
+ $('si-submit').onclick = () => {
+   const em = $('si-email').value, pw = $('si-pw').value;
+   const saved = sessionStorage.getItem('acct_pw');
+   if (em === EMAIL && saved && pw === saved) { L('LOGIN_OK', { email: em }); location.href = APP; }
+   else { L('LOGIN_FAIL', { email: em, pwLen: pw.length }); err('Invalid email or password'); }
+ };
+ $('fp-submit').onclick = () => {
+   if (!$('fp-email').value) return err('Email address is required');
+   L('RESET_REQUESTED', $('fp-email').value);
+   show('sent');
+ };
+ $('rs-submit').onclick = () => {
+   const pw = $('rs-pw').value, vp = $('rs-vpw').value;
+   if (!pw || pw !== vp) { L('RESET_REJECTED', 'mismatch'); return err('Passwords do not match'); }
+   sessionStorage.setItem('acct_pw', pw);
+   L('RESET_DONE', { pwLen: pw.length, match: true });
+   show('signin');
+ };
+
+ const view = params.get('view');
+ if (view === 'verified') { L('VERIFIED', 1); location.replace(APP); }
+ else show(view || 'job');
+</script>
+</body></html>

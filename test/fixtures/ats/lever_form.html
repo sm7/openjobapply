@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Local fixture imitating Lever's /apply page. Nothing leaves the page. -->
+<html lang="en"><head><meta charset="utf-8"><title>Fixture Health - Healthcare Data Analyst</title>
+<style>body{font-family:sans-serif;padding:16px;max-width:680px;margin:auto}.f{margin:10px 0}label{display:block}[hidden]{display:none!important}</style></head>
+<body>
+<div id="posting"><h1>Healthcare Data Analyst</h1><a href="#" id="apply-link" role="link">Apply for this job</a></div>
+<form id="app" hidden>
+  <div class="f"><label for="resume">Resume/CV</label><input id="resume" type="file"></div>
+  <div class="f"><label for="name">Full name&#x2731;</label><input id="name" name="name" required></div>
+  <div class="f"><label for="email">Email&#x2731;</label><input id="email" name="email" type="email" required></div>
+  <div class="f"><label for="phone">Phone</label><input id="phone" name="phone"></div>
+  <div class="f"><label for="loc">Current location</label><input id="loc" name="location"></div>
+  <div class="f"><label for="org">Current company</label><input id="org" name="org"></div>
+  <div class="f"><label for="li">LinkedIn URL</label><input id="li" name="urls[LinkedIn]"></div>
+  <div class="f"><label for="more">Additional information</label><textarea id="more"></textarea></div>
+  <fieldset class="f"><legend>Are you legally authorized to work in the United States?&#x2731;</legend>
+    <label><input type="radio" name="auth" required> Yes</label><label><input type="radio" name="auth"> No</label></fieldset>
+  <fieldset class="f"><legend>Gender</legend>
+    <label><input type="radio" name="gender"> Female</label><label><input type="radio" name="gender"> Male</label><label><input type="radio" name="gender"> Decline to self-identify</label></fieldset>
+  <fieldset class="f"><legend>Race</legend>
+    <label><input type="checkbox" name="race"> Asian</label><label><input type="checkbox" name="race"> Black or African American</label><label><input type="checkbox" name="race"> Decline to self-identify</label></fieldset>
+  <div class="f"><label><input type="checkbox" id="terms" required> I have read and agree to the Privacy Notice for job applicants.&#x2731;</label></div>
+  <div id="err" role="alert"></div>
+  <button type="button" id="submit">Submit application</button>
+</form>
+<div id="done" hidden>Application submitted! Thank you for applying.</div>
+<script>
+ window.__log=[]; const L=(k,v)=>window.__log.push({k,v}); const $=id=>document.getElementById(id);
+ $('apply-link').onclick=e=>{e.preventDefault(); $('posting').hidden=true; $('app').hidden=false;};
+ $('submit').onclick=()=>{ if(!$('name').value||!$('email').value||!$('terms').checked){ $('err').textContent='Please complete required fields'; return; }
+   L('form',{name:$('name').value,email:$('email').value,phone:$('phone').value,loc:$('loc').value,org:$('org').value,auth:[...document.querySelectorAll('input[name=auth]')].map(r=>r.checked),gender:[...document.querySelectorAll('input[name=gender]')].map(r=>r.checked),race:[...document.querySelectorAll('input[name=race]')].map(r=>r.checked),resume:$('resume').files.length}); L('SUBMITTED',1); $('app').hidden=true; $('done').hidden=false; };
+</script></body></html>

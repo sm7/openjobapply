@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Fixture: request a password-reset email. -->
+<html lang="en"><head><meta charset="utf-8"><title>Forgot password | Fixture Careers</title>
+<style>body{font-family:sans-serif;padding:16px} .ff{margin:10px 0} label{display:block;margin:6px 0 2px}</style></head>
+<body>
+<main id="main">
+  <h1>Forgot your password?</h1>
+  <div class="ff"><label for="em">Email Address</label><input id="em" type="email" name="email"></div>
+  <p id="err" role="alert"></p>
+  <button type="button" id="go">Send reset link</button>
+</main>
+<script src="fx.js"></script>
+<script>
+ $('go').onclick = async () => {
+   L('SUBMIT', 'reset-request');
+   const r = await post('/api/reset-request', { email: $('em').value });
+   if (r.notFound) { $('err').textContent = "We couldn't find an account with that email address."; return; }
+   $('main').innerHTML = "<h1>Check your inbox</h1><p>We've sent a password reset link to your email address.</p>";
+ };
+</script>
+</body></html>

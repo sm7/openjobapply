@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- Fixture: provider chooser seen live on a Workday tenant. Two buttons and NO inputs:
+     "Sign in with Google" (social, must never be pressed) and "Sign in with email" (first party).
+     Pressing email swaps in the normal email step (signin.html behaviour). -->
+<html lang="en"><head><meta charset="utf-8"><title>Sign in | Fixture Careers</title>
+<style>body{font-family:sans-serif;padding:16px} .ff{margin:10px 0} label{display:block;margin:6px 0 2px}</style></head>
+<body>
+<main>
+  <h1>Sign in</h1>
+  <div id="chooser">
+    <button type="button" id="google">Sign in with Google</button>
+    <button type="button" id="viaemail">Sign in with email</button>
+  </div>
+  <div id="emailstep" hidden>
+    <div class="ff" id="emrow"><label for="em">Email Address</label><input id="em" type="email" name="email"></div>
+    <div class="ff" id="pwrow" hidden><label for="pw">Password</label><input id="pw" type="password" name="password"></div>
+    <p id="err" role="alert"></p>
+    <button type="button" id="next">Continue</button>
+    <button type="button" id="go" hidden>Sign In</button>
+    <p id="forgotrow" hidden><a href="forgot.html" id="forgot">Forgot password?</a></p>
+    <p><a href="create.html" id="create">Create account</a></p>
+  </div>
+</main>
+<script src="fx.js"></script>
+<script>
+ $('google').onclick = () => { L('SOCIAL_CLICKED', 'google'); };
+ $('viaemail').onclick = () => { L('CHOSE', 'email'); $('chooser').hidden = true; $('emailstep').hidden = false; };
+ const showPw = () => { $('pwrow').hidden = false; $('go').hidden = false; $('next').hidden = true; $('forgotrow').hidden = false; };
+ $('next').onclick = async () => {
+   const r = await post('/api/lookup', { email: $('em').value });
+   L('LOOKUP', r.exists ? 'exists' : 'missing');
+   if (r.exists) { $('emrow').hidden = true; showPw(); } else $('err').textContent = "We couldn't find an account with that email.";
+ };
+ $('go').onclick = async () => {
+   L('SUBMIT', 'signin');
+   const r = await post('/api/login', { email: $('em').value || (window.__email || ''), password: $('pw').value });
+   if (!r.ok) { $('err').textContent = 'Incorrect email or password.'; return; }
+   location.href = 'app.html';
+ };
+ $('em').addEventListener('input', () => { window.__email = $('em').value; });
+</script>
+</body></html>

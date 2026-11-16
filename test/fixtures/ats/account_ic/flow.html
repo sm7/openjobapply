@@ -1,0 +1,108 @@
+<!doctype html>
+<!-- Local fixture: iCIMS login / profile-creation pages for the authorized account flow (served at /ic/, framed by
+     outer.html). Every step is a REAL navigation: ?step=<name>&scn=<scenario>. Application pages after login are the
+     existing ../icims/icims_flow.html (served at /icims/) in its authenticated "live" scenario.
+       scn=exists      job -> email -> password page ("Welcome back"; Forgot your password?) -> forgot -> sent -> (?step=reset) -> password -> app
+       scn=new         job -> email -> create-profile (names, email, password+confirm, privacy tickbox) -> app
+       scn=new_verify  as new, then a "verify your email" page; ?step=verified is the emailed link -> app
+       scn=wall        the Log In / Create a Profile choice wall (must stay manual even live)
+     Events are POSTed to /__log. Passwords are NEVER logged: only lengths / equality. -->
+<html lang="en"><head><meta charset="utf-8"><title>iCIMS - Healthcare Data Analyst</title>
+<style>
+ body{font-family:sans-serif;margin:0;padding:16px;max-width:760px} .row{margin:8px 0} label{display:block;margin:4px 0 2px} label.inl{display:inline}
+ .iCIMS_Button{display:inline-block;padding:6px 14px;border:1px solid #444;margin:6px 6px 6px 0;cursor:pointer} .err{color:#b00}
+</style></head>
+<body>
+<header><a href="#" id="tn" role="link">Join our Talent Network</a></header>
+<main id="m"></main>
+<script>
+ const P = new URLSearchParams(location.search);
+ const scn = P.get("scn") || "exists", step = P.get("step") || "job";
+ const L = (k, v) => fetch("/__log", { method: "POST", body: JSON.stringify({ k, v }), keepalive: true });
+ const go = (s, extra) => { location.href = "/ic/flow.html?" + new URLSearchParams({ step: s, scn, in_iframe: "1", ...(extra || {}) }); };
+ const app = () => { location.href = "/icims/icims_flow.html?scn=live&step=profile&in_iframe=1"; };
+ const $ = (id) => document.getElementById(id);
+ const m = $("m");
+ const EMAIL = "jane.doe@example.com";
+ const err = (msg) => { $("err").textContent = msg; };
+ const btn = (label, id) => `<button type="button" class="iCIMS_Button" id="${id || "next"}">${label}</button>`;
+ $("tn").onclick = (e) => { e.preventDefault(); L("FORBIDDEN_CLICK", "talent-network"); };
+
+ const pages = {
+  job() {
+   m.innerHTML = `<h1>Healthcare Data Analyst</h1><p>Job ID 8548 &middot; Boston, MA</p><a href="#" id="apply" role="link">Apply for this job online</a>`;
+   $("apply").onclick = (e) => { e.preventDefault(); L("APPLY_CLICK", 1); go(scn === "wall" ? "login" : "email"); };
+  },
+  login() {
+   m.innerHTML = `<h1>Log in to apply</h1><p>You must sign in or create a profile to apply for this job.</p>
+    <a href="#" role="button" class="iCIMS_Button" id="lg">Log In</a><a href="#" role="button" class="iCIMS_Button" id="cp">Create a Profile</a>`;
+   $("lg").onclick = (e) => { e.preventDefault(); L("BAD_CLICK", "wall-login"); };
+   $("cp").onclick = (e) => { e.preventDefault(); L("BAD_CLICK", "wall-create"); };
+  },
+  email() {
+   m.innerHTML = `<h1>Log in or create a profile</h1><p>Enter your email address to continue.</p>
+    <div class="row"><label for="em">Email Address*</label><input id="em" type="email" required></div>
+    <div id="err" class="err" role="alert"></div>${btn("Next")}`;
+   $("next").onclick = () => { if (!$("em").value) return err("Email address is required"); L("EMAIL_SUBMITTED", $("em").value); go(scn === "exists" ? "password" : "register", { e: $("em").value }); };
+  },
+  password() {
+   m.innerHTML = `<h1>Welcome back</h1><p>An account already exists for ${P.get("e") || "this email address"}. Enter your password to log in.</p>
+    <div class="row"><label for="pw">Password*</label><input id="pw" type="password" required></div>
+    <div id="err" class="err" role="alert"></div>${btn("Log In")}
+    <p><a href="#" id="forgot" role="link">Forgot your password?</a></p>`;
+   $("forgot").onclick = (e) => { e.preventDefault(); L("FORGOT_CLICK", 1); go("forgot", { e: P.get("e") || "" }); };
+   $("next").onclick = () => {
+    const saved = sessionStorage.getItem("acct_pw"), pw = $("pw").value;
+    if (saved && pw === saved) { L("LOGIN_OK", 1); app(); } else { L("LOGIN_FAIL", { pwLen: pw.length }); err("Incorrect password"); }
+   };
+  },
+  forgot() {
+   m.innerHTML = `<h1>Forgot your password</h1><p>Enter your email address and we will send you a link to reset it.</p>
+    <div class="row"><label for="fe">Email Address*</label><input id="fe" type="email" required></div>
+    <div id="err" class="err" role="alert"></div>${btn("Send Reset Link")}`;
+   $("next").onclick = () => { if (!$("fe").value) return err("Email address is required"); L("RESET_REQUESTED", $("fe").value); go("sent"); };
+  },
+  sent() {
+   m.innerHTML = `<h1>Check your email</h1><p>A link to reset your password has been sent to your email address.</p>`;
+  },
+  reset() {
+   m.innerHTML = `<h1>Reset your password</h1><p>Choose a new password for your profile.</p>
+    <div class="row"><label for="np">New password*</label><input id="np" type="password" required></div>
+    <div class="row"><label for="cp2">Confirm new password*</label><input id="cp2" type="password" required></div>
+    <div id="err" class="err" role="alert"></div>${btn("Save Password")}`;
+   $("next").onclick = () => {
+    const a = $("np").value, b = $("cp2").value;
+    if (!a || a !== b) { L("RESET_REJECTED", "mismatch"); return err("Passwords do not match"); }
+    sessionStorage.setItem("acct_pw", a);
+    L("RESET_DONE", { pwLen: a.length, match: true });
+    go("password", { e: EMAIL });
+   };
+  },
+  register() {
+   m.innerHTML = `<h1>Create your profile</h1><p>Create a profile to apply.</p>
+    <div class="row"><label for="rf">First Name*</label><input id="rf" required></div>
+    <div class="row"><label for="rl">Last Name*</label><input id="rl" required></div>
+    <div class="row"><label for="re">Email Address*</label><input id="re" type="email" required value="${P.get("e") || ""}"></div>
+    <div class="row"><label for="rp">Password*</label><input id="rp" type="password" required></div>
+    <div class="row"><label for="rc">Confirm Password*</label><input id="rc" type="password" required></div>
+    <div class="row"><label><input type="checkbox" id="priv" required> I have read and agree to the Privacy Policy*</label></div>
+    <div class="row"><label><input type="checkbox" id="alerts" checked> Email me job alerts and marketing</label></div>
+    <div id="err" class="err" role="alert"></div>${btn("Create Profile")}`;
+   $("alerts").onchange = () => L("MARKETING_TICKED", $("alerts").checked);
+   $("next").onclick = () => {
+    const f = $("rf").value, l = $("rl").value, e = $("re").value, p = $("rp").value, c = $("rc").value;
+    if (!f || !l || !e || !p) return err("Please complete all required fields");
+    if (p !== c) { L("ACCOUNT_REJECTED", "mismatch"); return err("Passwords do not match"); }
+    if (!$("priv").checked) { L("ACCOUNT_REJECTED", "privacy"); return err("You must accept the privacy policy"); }
+    sessionStorage.setItem("acct_pw", p);
+    L("ACCOUNT_CREATED", { fn: f, ln: l, em: e, pwLen: p.length, match: true, priv: true, alerts: $("alerts").checked });
+    if (scn === "new_verify") go("verify"); else app();
+   };
+  },
+  verify() {
+   m.innerHTML = `<h1>Verify your email</h1><p>We sent a confirmation email. Check your email and follow the link to verify your account.</p>`;
+  },
+  verified() { L("VERIFIED", 1); app(); },
+ };
+ (pages[step] || pages.job)();
+</script></body></html>

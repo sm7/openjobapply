@@ -1,0 +1,40 @@
+<!doctype html>
+<!-- Fixture: employer "create your account" page. ?extra=1 adds a required SSN field, ?mkt=1 pre-ticks the marketing box,
+     ?captcha=1 shows a captcha challenge frame at load, ?captcha=late shows it after Create Account is pressed. -->
+<html lang="en"><head><meta charset="utf-8"><title>Create account | Fixture Careers</title>
+<style>body{font-family:sans-serif;padding:16px} .ff{margin:10px 0} label{display:block;margin:6px 0 2px}</style></head>
+<body>
+<main id="main">
+  <h1>Create your account</h1>
+  <div class="ff"><label for="fn">First Name*</label><input id="fn" name="first" required></div>
+  <div class="ff"><label for="ln">Last Name*</label><input id="ln" name="last" required></div>
+  <div class="ff"><label for="em">Email Address*</label><input id="em" name="email" type="email" required></div>
+  <div class="ff"><label for="pw">Password*</label><input id="pw" name="password" type="password" required></div>
+  <div class="ff"><label for="pw2">Confirm Password*</label><input id="pw2" name="password2" type="password" required></div>
+  <div class="ff" id="extra" hidden><label for="ssn">Social Security Number*</label><input id="ssn" name="ssn" required></div>
+  <div class="ff"><label><input type="checkbox" id="terms" required> I agree to the Terms of Use and Privacy Policy*</label></div>
+  <div class="ff"><label><input type="checkbox" id="mkt"> Send me job alerts and marketing emails</label></div>
+  <div id="cap" hidden><iframe title="reCAPTCHA challenge" srcdoc="<p>challenge</p>" style="width:300px;height:300px"></iframe></div>
+  <p id="err" role="alert"></p>
+  <button type="button" id="go">Create Account</button>
+  <button type="button" id="g">Sign up with Google</button>
+  <p>Already have an account? <a href="signin.html?both=1">Sign in</a></p>
+</main>
+<script src="fx.js"></script>
+<script>
+ if (param('extra')) $('extra').hidden = false;
+ if (param('mkt')) $('mkt').checked = true;
+ if (param('captcha') === '1') $('cap').hidden = false;
+ $('g').onclick = () => {};
+ $('go').onclick = async () => {
+   if (param('captcha') === 'late') { $('cap').hidden = false; L('CAPTCHA_SHOWN', 1); return; }
+   if (!$('fn').value || !$('ln').value || !$('em').value || !$('pw').value || !$('terms').checked || (param('extra') && !$('ssn').value)) { $('err').textContent = 'Please complete all required fields.'; return; }
+   if ($('pw').value !== $('pw2').value) { $('err').textContent = 'Passwords do not match.'; return; }
+   L('SUBMIT', 'create');
+   const r = await post('/api/register', { first: $('fn').value, last: $('ln').value, email: $('em').value, password: $('pw').value, terms: $('terms').checked, marketing: $('mkt').checked });
+   if (r.error === 'exists') { $('err').textContent = 'An account with this email address already exists.'; return; }
+   if (r.verify) $('main').innerHTML = '<h1>Almost done</h1><p>We sent a confirmation link to your email address. Please verify your email to activate your account.</p>';
+   else location.href = 'signin.html?both=1';
+ };
+</script>
+</body></html>

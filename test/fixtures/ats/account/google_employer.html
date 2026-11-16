@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- Fixture: employer sign-in chooser with Google + LinkedIn + email options. Served on 127.0.0.1.
+     "Sign in with Google" navigates to the fake Google host (localhost, a different HOSTNAME) passing ?scn=.
+     "Sign in with LinkedIn" must never be pressed. ?signed=1 is the signed-in landing page. -->
+<html lang="en"><head><meta charset="utf-8"><title>Sign in | Fixture Careers</title></head>
+<body>
+<main>
+  <h1 id="h">Sign in</h1>
+  <div id="chooser">
+    <button type="button" id="google">Sign in with Google</button>
+    <button type="button" id="linkedin">Sign in with LinkedIn</button>
+    <button type="button" id="viaemail">Sign in with email</button>
+  </div>
+  <p id="done" hidden>Signed in. Continue your application.</p>
+</main>
+<script src="fx.js"></script>
+<script>
+ const gh = param('gh') || 'localhost:0';
+ if (param('signed')) { $('chooser').hidden = true; $('done').hidden = false; $('h').textContent = 'Application'; L('SIGNED_IN', param('via') || '?'); }
+ window.ALLOW_GOOGLE = true; // this page is the one place a Google click is expected; LinkedIn is still tracked via SOCIAL_CLICKED
+ $('google').onclick = () => { L('GOOGLE_CLICKED', 1); location.href = 'http://' + gh + '/gaccount.html?scn=' + (param('scn') || 'ok') + '&back=' + encodeURIComponent(location.origin); };
+ $('linkedin').onclick = () => { L('SOCIAL_CLICKED', 'linkedin'); };
+ $('viaemail').onclick = () => { L('CHOSE', 'email'); $('chooser').innerHTML = '<p>Email step</p>'; };
+</script>
+</body></html>

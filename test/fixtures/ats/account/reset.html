@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- Fixture: the page a password-reset link opens. -->
+<html lang="en"><head><meta charset="utf-8"><title>Reset password | Fixture Careers</title>
+<style>body{font-family:sans-serif;padding:16px} .ff{margin:10px 0} label{display:block;margin:6px 0 2px}</style></head>
+<body>
+<main>
+  <h1>Set a new password</h1>
+  <div class="ff"><label for="pw">New password*</label><input id="pw" type="password" name="password"></div>
+  <div class="ff"><label for="pw2">Confirm new password*</label><input id="pw2" type="password" name="password2"></div>
+  <p id="err" role="alert"></p>
+  <button type="button" id="go">Reset password</button>
+</main>
+<script src="fx.js"></script>
+<script>
+ $('go').onclick = async () => {
+   if ($('pw').value !== $('pw2').value || !$('pw').value) { $('err').textContent = 'Passwords do not match.'; return; }
+   L('SUBMIT', 'reset');
+   const r = await post('/api/reset', { token: param('token'), password: $('pw').value });
+   if (!r.ok) { $('err').textContent = 'This reset link is invalid or expired.'; return; }
+   location.href = 'signin.html?both=1&reset=1';
+ };
+</script>
+</body></html>

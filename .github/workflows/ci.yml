@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit tests
+        run: python -m unittest discover -s test -p 'test_*.py'
+      - name: Documentation check
+        run: python scripts/check_docs.py
+      - name: Privacy scan
+        run: python scripts/check_privacy.py
+
+  javascript:
+    name: JavaScript tests that need no browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun test/fixtures/ats/answers_standing.test.js
+      - run: bun test/fixtures/ats/answers_consents.test.js
+      - run: bun test/fixtures/ats/pacing.test.js
+
+# The browser fixture suites (test/fixtures/ats/run.js and the other *.test.js files) need the omp `browser` global.
+# Run them from an omp eval cell, as described in each test's header. They are not part of this workflow.

@@ -1,0 +1,166 @@
+<!doctype html>
+<!-- Local fixture imitating the iCIMS candidate-experience pages (served inside the icims_content_iframe
+     of icims_outer.html, or top level). Every step is a REAL navigation: ?step=<name>&scn=<scenario>.
+       scn=wall    login/register choice screen, no email step           -> account_required
+       scn=exists  job -> email -> password page ("Welcome back")        -> password_required
+       scn=new     job -> email -> create-your-profile (password+confirm)-> account_required
+       scn=pw      (start at ?step=password directly)                    -> password_required
+       scn=auth    authenticated session: job -> profile -> questions -> eeo -> review (Submit)
+       scn=unknown as auth, plus a required free-text question that must never be guessed
+       scn=live    as auth; Submit ends on the thank-you page
+       scn=source-known/source-unknown/source-invalid: review Submit opens unfinished Source form
+       scn=intermediate-source: numbered intermediate Submit -> Source -> receipt
+     Events are POSTed to /__log (the test server keeps them across navigations). Nothing else leaves the page. -->
+<html lang="en"><head><meta charset="utf-8"><title>iCIMS - Healthcare Data Analyst</title>
+<style>
+ body{font-family:sans-serif;margin:0;padding:16px;max-width:760px} .row{margin:8px 0} label{display:block;margin:4px 0 2px}
+ .iCIMS_Button{display:inline-block;padding:6px 14px;border:1px solid #444;margin:6px 6px 6px 0;cursor:pointer}
+ .err{color:#b00} [hidden]{display:none!important}
+</style></head>
+<body>
+<header><a href="#" id="tn" role="link">Join our Talent Network</a> <a href="#" id="signout" hidden>Sign Out</a></header>
+<main id="m"></main>
+<script>
+ const P = new URLSearchParams(location.search);
+ const scn = P.get("scn") || "auth", step = P.get("step") || "job";
+ const authed = ["auth", "unknown", "live", "intermediate-source"].includes(scn) || scn.startsWith("source-");
+ const L = (k, v) => fetch("/__log", { method: "POST", body: JSON.stringify({ k, v }), keepalive: true });
+ const go = (s, extra) => { const u = new URLSearchParams({ step: s, scn, in_iframe: "1", ...(extra || {}) }); location.href = "icims_flow.html?" + u; };
+ const $ = (id) => document.getElementById(id);
+ const m = $("m");
+ const nav = (label, kind) => kind === "submit" ? `<input type="submit" class="iCIMS_Button" id="next" value="${label}">` : kind === "a" ? `<a href="#" role="button" class="iCIMS_Button" id="next">${label}</a>` : `<button type="button" class="iCIMS_Button" id="next">${label}</button>`;
+ const err = (msg) => { $("err").textContent = msg; };
+ const missing = (ids) => ids.filter((i) => { const e = $(i); return e.type === "checkbox" ? !e.checked : !e.value; });
+ const val = (ids) => Object.fromEntries(ids.map((i) => [i, $(i).type === "checkbox" ? $(i).checked : $(i).value]));
+ $("tn").onclick = (e) => { e.preventDefault(); L("FORBIDDEN_CLICK", "talent-network"); };
+ if (authed) $("signout").hidden = false;
+ $("signout").onclick = (e) => { e.preventDefault(); L("FORBIDDEN_CLICK", "signout"); };
+
+ const pages = {
+  job() {
+   m.innerHTML = `<h1>Healthcare Data Analyst</h1><p>Job ID 8548 &middot; Boston, MA &middot; Full time</p>
+    <a href="#" id="apply" class="iCIMS_Anchor" role="link">Apply for this job online</a>`;
+   $("apply").onclick = (e) => { e.preventDefault(); L("APPLY_CLICK", 1); go(authed ? "profile" : scn === "wall" ? "login" : scn === "pw" ? "password" : "email"); };
+  },
+  login() {
+   m.innerHTML = `<h1>Log in to apply</h1><p>You must sign in or create a profile to apply for this job.</p>
+    <a href="#" role="button" class="iCIMS_Button" id="lg">Log In</a>
+    <a href="#" role="button" class="iCIMS_Button" id="cp">Create a Profile</a>
+    <p>Or <button type="button" id="gg">Sign in with Google</button></p>`;
+   $("lg").onclick = (e) => { e.preventDefault(); L("LOGIN_CLICK", 1); };
+   $("cp").onclick = (e) => { e.preventDefault(); L("ACCOUNT_CREATED", "create-profile-button"); };
+   $("gg").onclick = () => L("FORBIDDEN_CLICK", "google");
+  },
+  email() {
+   m.innerHTML = `<h1>Log in or create a profile</h1><p>Enter your email address to continue.</p>
+    <div class="row"><label for="em">Email Address*</label><input id="em" type="email" required></div>
+    <div id="err" class="err" role="alert"></div>${nav("Next")}`;
+   $("next").onclick = () => { if (!$("em").value) return err("Email address is required"); L("EMAIL_SUBMITTED", $("em").value); go(scn === "exists" ? "password" : "register", { e: $("em").value }); };
+  },
+  password() {
+   m.innerHTML = `<h1>Welcome back</h1><p>An account already exists for ${P.get("e") || "this email address"}. Enter your password to log in.</p>
+    <div class="row"><label for="pw">Password*</label><input id="pw" type="password" required></div>
+    <div id="err" class="err" role="alert"></div>${nav("Log In")}
+    <p><a href="#" id="forgot" role="link">Forgot your password?</a></p>`;
+   $("pw").oninput = () => L("PASSWORD_TYPED", 1);
+   $("forgot").onclick = (e) => { e.preventDefault(); L("PASSWORD_RESET", 1); };
+   $("next").onclick = () => L("LOGIN_SUBMITTED", 1);
+  },
+  register() {
+   m.innerHTML = `<h1>Create your profile</h1><p>Create a profile to apply.</p>
+    <div class="row"><label for="rf">First Name*</label><input id="rf" required></div>
+    <div class="row"><label for="rl">Last Name*</label><input id="rl" required></div>
+    <div class="row"><label for="re">Email Address*</label><input id="re" type="email" required value="${P.get("e") || ""}"></div>
+    <div class="row"><label for="rp">Password*</label><input id="rp" type="password" required></div>
+    <div class="row"><label for="rc">Confirm Password*</label><input id="rc" type="password" required></div>
+    <div id="err" class="err" role="alert"></div>${nav("Create Profile")}`;
+   $("next").onclick = () => L("ACCOUNT_CREATED", "register-form");
+  },
+  profile() {
+   m.innerHTML = `<h2>Step 1 of 4: Contact Information</h2>
+    <div class="row"><label for="resume">Upload Resume*</label><input id="resume" type="file" required></div>
+    <div class="row"><label for="fn">First Name*</label><input id="fn" required></div>
+    <div class="row"><label for="ln">Last Name*</label><input id="ln" required></div>
+    <div class="row"><label for="em">Email*</label><input id="em" type="email" required></div>
+    <div class="row"><label for="ph">Phone*</label><input id="ph" type="tel" required></div>
+    <div class="row"><label for="ad">Address*</label><input id="ad" required></div>
+    <div class="row"><label for="ct">City*</label><input id="ct" required></div>
+    <div class="row"><label for="st">State*</label><select id="st" required><option value="">Select...</option><option value="CA">California</option><option value="MA">Massachusetts</option><option value="NY">New York</option></select></div>
+    <div class="row"><label for="zp">Zip Code*</label><input id="zp" required></div>
+    <div id="err" class="err" role="alert"></div>${nav("Next")}`;
+   $("next").onclick = () => { if (missing(["fn", "ln", "em", "ph", "ad", "ct", "st", "zp", "resume"]).length) return err("Please complete all required fields"); L("profile", { ...val(["fn", "ln", "em", "ph", "ad", "ct", "st", "zp"]), resume: $("resume").files[0].name }); go("questions"); };
+  },
+  questions() {
+   m.innerHTML = `<h2>Step 2 of 4: Application Questions</h2>
+    <fieldset class="row"><legend>Are you legally authorized to work in the United States?*</legend>
+     <label><input type="radio" name="auth" value="y" required> Yes</label><label><input type="radio" name="auth" value="n"> No</label></fieldset>
+    <fieldset class="row"><legend>Will you now or in the future require sponsorship for employment visa status?*</legend>
+     <label><input type="radio" name="spons" value="y" required> Yes</label><label><input type="radio" name="spons" value="n"> No</label></fieldset>
+    <div class="row"><label for="hear">How did you hear about us?*</label><select id="hear" required><option value="">Select...</option><option>Company Website</option><option>Indeed</option><option>LinkedIn</option><option>Referral</option></select></div>
+    <div class="row"><label><input type="checkbox" id="alerts"> Send me job alerts by email</label></div>
+    ${scn === "unknown" ? `<div class="row"><label for="epic">Describe your experience with Epic Clarity reporting*</label><textarea id="epic" required></textarea></div>` : ""}
+    <div id="err" class="err" role="alert"></div>${nav("Save &amp; Continue", "submit")}`;
+   $("next").onclick = (e) => { e.preventDefault(); const rq = [...document.querySelectorAll("[required]")].filter((x) => x.type === "radio" ? !document.querySelector(`input[name=${x.name}]:checked`) : !x.value); if (rq.length) return err("Please complete all required fields"); L("questions", { auth: document.querySelector("input[name=auth]:checked").value, spons: document.querySelector("input[name=spons]:checked").value, hear: $("hear").value, alerts: $("alerts").checked }); go("eeo"); };
+  },
+  eeo() {
+   m.innerHTML = `<h2>Step 3 of 4: Voluntary Self-Identification</h2>
+    <div class="row"><label for="gender">Gender</label><select id="gender"><option value="">Select...</option><option>Male</option><option>Female</option><option>I do not wish to answer</option></select></div>
+    <div class="row"><label for="vet">Veteran Status</label><select id="vet"><option value="">Select...</option><option>I am a protected veteran</option><option>I am not a veteran</option><option>I decline to self-identify</option></select></div>
+    <div class="row"><label for="race">Race / Ethnicity</label><select id="race"><option value="">Select...</option><option>Asian</option><option>White</option><option>Decline to self-identify</option></select></div>
+    <div class="row"><label><input type="checkbox" id="bg"> I authorize the company to run a background check</label></div>
+    <div class="row"><label><input type="checkbox" id="truth" required> I certify that the information I have provided is true and accurate.*</label></div>
+    <div id="err" class="err" role="alert"></div>${nav("Review", "a")}`;
+   $("next").onclick = (e) => { e.preventDefault(); if (!$("truth").checked) return err("You must certify your answers"); L("eeo", { gender: $("gender").value, vet: $("vet").value, race: $("race").value, bg: $("bg").checked, truth: $("truth").checked }); go("review"); };
+  },
+  review() {
+   m.innerHTML = `<h2>Step 4 of 4: Review your application</h2><p>Please review the information you have entered, then submit.</p>${nav("Submit")}`;
+   $("next").onclick = () => { if (scn.startsWith("source-")) { L("REVIEW_SUBMIT", 1); go(scn === "source-observed" ? "observedSource" : "source"); } else { L("SUBMITTED", 1); go("done"); } };
+  },
+  intermediate() {
+   m.innerHTML = `<h2>Step 1 of 2: Contact Information</h2>
+    <label for="fn">First Name*</label><input id="fn" required>
+    <div id="err" class="err" role="alert"></div>${nav("Submit")}`;
+   $("next").onclick = () => { if (!$("fn").value) return err("First name is required"); L("INTERMEDIATE_SUBMIT", $("fn").value); go("source"); };
+  },
+  source() {
+   m.innerHTML = `<h2>Source</h2><p>Thank you for your interest. Complete the source attribution below.</p>
+    <label for="source">${scn === "source-unknown" ? "Source" : "How did you hear about us?"}*</label>
+    <select id="source" required><option value="">Select...</option><option>Company Website</option><option>LinkedIn</option><option>Indeed</option></select>
+    <label for="channel">Source Channel CCC</label><input id="channel">
+    <label for="sourceName">Source Name</label><input id="sourceName">
+    <label for="sourceEmail">Source Email</label><input id="sourceEmail" type="email">
+    <label for="sourcePhone">Source Phone</label><input id="sourcePhone" type="tel">
+    <div id="err" class="err" role="alert"></div><button id="later">Finish Later</button>${nav("Submit")}`;
+   $("later").onclick = () => L("FORBIDDEN_CLICK", "finish-later");
+   $("next").onclick = () => {
+    L("SOURCE_SUBMIT", val(["source", "channel", "sourceName", "sourceEmail", "sourcePhone"]));
+    if (!$("source").value) return err("Source is required");
+    if (scn === "source-invalid") return err("Source channel requires review");
+    L("SUBMITTED", 1); go("done");
+   };
+  },
+  observedSource() {
+   m.innerHTML = `<h2>Business Systems Analyst lll -</h2>
+    <label for="rcf3167">Source</label><select id="rcf3167" name="rcf3167">
+     <option value="">Please select</option><option>FCHP career site (Unpromted)</option><option>Internet: LinkedIn</option><option>Internet: Indeed</option><option>Employee Referral</option></select>
+    <p>Source Channel CCC</p>
+    <label for="rcf3169">Source Name</label><select id="rcf3169" name="rcf3169"><option value="">Please select a source</option></select>
+    <input id="rcf3169_Text" name="rcf3169_Text" aria-label="Source Name">
+    <label for="sourceEmail">Source Email</label><input id="sourceEmail" type="email">
+    <label for="sourcePhone">Source Phone</label><input id="sourcePhone" type="tel">
+    <div id="err" role="alert"></div>
+    <input type="button" id="quesp_form_save_i" value="Finish Later">
+    <input type="submit" id="quesp_form_submit_i" value="Submit">`;
+   $("quesp_form_save_i").onclick = () => L("FORBIDDEN_CLICK", "finish-later");
+   $("quesp_form_submit_i").onclick = (e) => {
+    e.preventDefault();
+    L("SOURCE_SUBMIT", val(["rcf3167", "rcf3169", "rcf3169_Text", "sourceEmail", "sourcePhone"]));
+    err("Source is required"); // Native required=false does not guarantee server acceptance.
+   };
+  },
+  done() {
+   m.innerHTML = `<h1>Thank you for applying!</h1><p>Your application has been submitted.</p>`;
+  },
+ };
+ (pages[step] || pages.job)();
+</script></body></html>

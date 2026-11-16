@@ -1,0 +1,14 @@
+<!doctype html>
+<!-- Local fixture: iCIMS career-site wrapper for the ACCOUNT pages (flow.html). Same shape as ../icims/icims_outer.html:
+     the application lives in iframe#icims_content_iframe; the query string is forwarded. Nothing leaves the machine. -->
+<html lang="en"><head><meta charset="utf-8"><title>Healthcare Data Analyst | Careers | Fixture Health</title>
+<style>body{font-family:sans-serif;margin:0;padding:12px}iframe{border:0;width:100%;height:1100px}</style></head>
+<body>
+<header><h2>Careers at Fixture Health</h2></header>
+<div id="iCIMS_MainWrapper" class="iCIMS_MainWrapper">
+  <iframe id="icims_content_iframe" name="icims_content_iframe" title="Job Content"></iframe>
+</div>
+<script>
+ const q = location.search || "?";
+ document.getElementById("icims_content_iframe").src = "/ic/flow.html" + q + (q === "?" ? "" : "&") + "in_iframe=1";
+</script></body></html>

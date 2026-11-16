@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Fixture: a fake Google account page, served from the HOSTNAME "localhost" (the employer fixture is 127.0.0.1).
+     ?scn=ok            account chooser with her tile + one other, then basic consent, then back to the employer page
+     ?scn=ok_nochooser  straight to basic consent
+     ?scn=wrong         chooser WITHOUT her tile
+     ?scn=password      Google asks for a password
+     ?scn=twostep       2-Step Verification
+     ?scn=broad         consent asking for Gmail / Drive access
+     ?scn=dupe          two tiles for her account
+     Events are POSTed to the employer origin's /api/log (back=...). Nothing is ever typed here. -->
+<html lang="en"><head><meta charset="utf-8"><title>Sign in - Google Accounts</title></head>
+<body>
+<main id="m"></main>
+<script>
+ const q = new URLSearchParams(location.search), scn = q.get('scn') || 'ok', back = q.get('back') || '';
+ const EM = 'jane.doe@example.com';
+ const post = (k, v) => fetch(back + '/api/log', { method: 'POST', body: JSON.stringify({ k, v }), keepalive: true, mode: 'no-cors' });
+ const m = document.getElementById('m');
+ const go = () => { post('GOOGLE_RETURNED', scn); location.href = back + '/google_employer.html?signed=1&via=google'; };
+ const consent = (extra) => { m.innerHTML = '<h1>Sign in to Fixture Careers with Google</h1><p>Fixture Careers will see your name, email address and profile picture. ' + (extra || '') + '</p><button id="cont">Continue</button> <button id="cancel">Cancel</button>'; document.getElementById('cont').onclick = () => { post('GOOGLE_CONSENT', scn); go(); }; };
+ const tile = (e) => '<div role="link" tabindex="0" data-identifier="' + e + '" class="t">' + e + '</div>';
+ if (scn === 'password') m.innerHTML = '<h1>Welcome</h1><input type="password" id="pw" aria-label="Enter your password"><button>Next</button>';
+ else if (scn === 'twostep') m.innerHTML = '<h1>2-Step Verification</h1><p>Check your phone. Google sent a notification.</p>';
+ else if (scn === 'broad') consent('Fixture Careers wants to access your Google Account. See, edit, create and delete all of your Google Drive files and read, compose, send and permanently delete all your email from Gmail.');
+ else if (scn === 'ok_nochooser') consent();
+ else {
+   const tiles = scn === 'wrong' ? tile('someone.else@example.invalid') : scn === 'dupe' ? tile(EM) + tile(EM) : tile('someone.else@example.invalid') + tile(EM);
+   m.innerHTML = '<h1>Choose an account</h1><p>to continue to Fixture Careers</p>' + tiles;
+   for (const t of m.querySelectorAll('.t')) t.onclick = () => { post('GOOGLE_TILE', t.dataset.identifier); consent(); };
+ }
+</script>
+</body></html>

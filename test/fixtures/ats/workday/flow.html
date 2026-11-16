@@ -1,0 +1,238 @@
+<!doctype html>
+<!-- Local fixture imitating the Workday candidate-experience flow (data-automation-id hooks as on *.myworkdayjobs.com):
+     job -> Apply (adventureButton) -> Start Your Application (applyManually / useMyLastApplication / autofillWithResume)
+     -> My Information -> My Experience -> Application Questions -> Voluntary Disclosures -> Self Identify -> Review -> Submit -> Application Submitted.
+     Query:  ?scenario=signin       Apply Manually leads to the sign-in / create-account page (no session)
+             ?scenario=unknown_q    Application Questions asks a required question the bot must refuse to guess
+             ?scenario=empty_history  the saved work-experience entry has an empty required Job Title
+             ?start=job|choice|signin|step1..step6   page to start on (an authenticated session is assumed)
+     Dropdowns are <button aria-haspopup=listbox>; "how did you hear" is a multi-select with a search box; Given Name and
+     Postal Code are "controlled" inputs that only trust real (isTrusted) input events and revert anything else on blur.
+     Everything is mirrored into window.__log so tests can assert what was (not) clicked / typed. NOTHING leaves the page. -->
+<html lang="en"><head><meta charset="utf-8"><title>Careers | Workday fixture</title>
+<style>
+ body{font-family:sans-serif;margin:0;padding:16px} main{max-width:760px;margin:0 auto} [hidden]{display:none!important}
+ .ff{margin:10px 0} label,legend{display:block;margin:6px 0 2px} fieldset{border:0;padding:0;margin:10px 0}
+ input[type=text],input[type=tel],input[type=password],input[type=email],textarea{width:320px;padding:4px} button{padding:6px 10px}
+ ul[role=listbox]{position:absolute;z-index:9;background:#fff;border:1px solid #888;list-style:none;margin:0;padding:0;min-width:260px}
+ li[role=option]{padding:6px 10px;cursor:pointer} li[role=option]:hover{background:#def}
+ .dlg{border:1px solid #888;padding:16px;margin:12px 0;background:#fff} #errs{color:#b00;border:1px solid #b00;padding:8px;margin:8px 0}
+ .box{border:1px solid #aaa;padding:4px;min-height:24px;width:320px} .box input{border:0;outline:0}
+ #file{position:absolute;opacity:0;width:1px;height:1px}
+</style></head>
+<body>
+<header>
+  <button type="button" id="talent">Join Talent Community</button>
+  <button type="button" id="alerts">Create Job Alert</button>
+  <a href="#" role="button" id="hdr-signin" data-automation-id="utilityButtonSignIn">Sign In</a>
+</header>
+<main>
+<div id="progress" data-automation-id="progressBar" hidden><div data-automation-id="progressBarActiveStep"><span id="stepNo">current step 1 of 6</span> <span id="stepName">My Information</span></div></div>
+<div id="errs" data-automation-id="errorBanner" role="alert" hidden></div>
+
+<section id="job"><h1>Registered Nurse - Care Coordination</h1><p>Req 12345. Boston, MA.</p>
+  <a href="#" role="button" id="apply" data-automation-id="adventureButton">Apply</a></section>
+
+<section id="choice" class="dlg" role="dialog" aria-label="Start Your Application" hidden>
+  <h2>Start Your Application</h2>
+  <a href="#" role="button" id="autofill" data-automation-id="autofillWithResume">Autofill with Resume</a><br>
+  <a href="#" role="button" id="manual" data-automation-id="applyManually">Apply Manually</a><br>
+  <a href="#" role="button" id="last" data-automation-id="useMyLastApplication">Use My Last Application</a>
+</section>
+
+<section id="signin" data-automation-id="signInContent" hidden>
+  <h2>Sign In</h2>
+  <div class="ff"><label for="si-email">Email Address*</label><input type="email" id="si-email" data-automation-id="email"></div>
+  <div class="ff"><label for="si-pw">Password*</label><input type="password" id="si-pw" data-automation-id="password"></div>
+  <button type="button" id="si-submit" data-automation-id="signInSubmitButton">Sign In</button>
+  <button type="button" id="si-google">Sign in with Google</button>
+  <p>Don't have an account? <a href="#" role="button" id="si-create" data-automation-id="createAccountLink">Create Account</a></p>
+</section>
+
+<section id="step1" hidden>
+  <h2>My Information</h2>
+  <div class="ff" data-automation-id="formField-source"><label for="src">How Did You Hear About Us?<abbr title="required">*</abbr></label>
+    <div class="box" id="srcBox" data-automation-id="multiSelectContainer"><input type="text" id="src" data-automation-id="searchBox" aria-label="How Did You Hear About Us?"></div></div>
+  <div class="ff" data-automation-id="formField-country"><label for="country">Country<abbr title="required">*</abbr></label>
+    <button type="button" id="country" aria-haspopup="listbox" aria-label="Country Select One Required" data-automation-id="countryDropdown" data-opts="United States of America|United States Minor Outlying Islands|India|Canada">Select One</button></div>
+  <div class="ff" data-automation-id="formField-legalNameSection_firstName"><label for="gn">Given Name(s)<abbr title="required">*</abbr></label><input type="text" id="gn" data-automation-id="legalNameSection_firstName"></div>
+  <div class="ff" data-automation-id="formField-legalNameSection_lastName"><label for="fn">Family Name<abbr title="required">*</abbr></label><input type="text" id="fn" data-automation-id="legalNameSection_lastName"></div>
+  <div class="ff" data-automation-id="formField-preferred"><input type="checkbox" id="pref" data-automation-id="preferredNameCheckbox"><label for="pref" style="display:inline">I have a preferred name</label></div>
+  <div class="ff" data-automation-id="formField-addressLine1"><label for="addr">Address Line 1<abbr title="required">*</abbr></label><input type="text" id="addr" data-automation-id="addressSection_addressLine1"></div>
+  <div class="ff" data-automation-id="formField-addressLine2"><label for="addr2">Address Line 2</label><input type="text" id="addr2" data-automation-id="addressSection_addressLine2"></div>
+  <div class="ff" data-automation-id="formField-city"><label for="city">City<abbr title="required">*</abbr></label><input type="text" id="city" data-automation-id="addressSection_city"></div>
+  <div class="ff" data-automation-id="formField-state"><label for="state">State<abbr title="required">*</abbr></label>
+    <button type="button" id="state" aria-haspopup="listbox" data-automation-id="addressSection_countryRegion" data-opts="California|Massachusetts|New York|Texas">Select One</button></div>
+  <div class="ff" data-automation-id="formField-postalCode"><label for="zip">Postal Code<abbr title="required">*</abbr></label><input type="text" id="zip" data-automation-id="addressSection_postalCode"></div>
+  <div class="ff" data-automation-id="formField-phoneType"><label for="device">Phone Device Type</label>
+    <button type="button" id="device" aria-haspopup="listbox" data-automation-id="phone-device-type" data-opts="Mobile|Home|Work">Select One</button></div>
+  <div class="ff" data-automation-id="formField-countryPhoneCode"><label for="pcc">Country Phone Code<abbr title="required">*</abbr></label>
+    <button type="button" id="pcc" aria-haspopup="listbox" data-automation-id="country-phone-code" data-opts="India (+91)|United States Minor Outlying Islands (+1)|United States of America (+1)">Select One</button></div>
+  <div class="ff" data-automation-id="formField-phoneNumber"><label for="phone">Phone Number<abbr title="required">*</abbr></label><input type="tel" id="phone" data-automation-id="phone-number"></div>
+  <div class="ff" data-automation-id="formField-phoneExt"><label for="ext">Phone Extension</label><input type="text" id="ext" data-automation-id="phone-extension"></div>
+</section>
+
+<section id="step2" hidden>
+  <h2>My Experience</h2>
+  <div data-automation-id="workExperienceSection"><h3>Work Experience</h3>
+    <div data-automation-id="workExperience-1">
+      <div class="ff" data-automation-id="formField-jobTitle"><label for="jt">Job Title<abbr title="required">*</abbr></label><input type="text" id="jt" data-automation-id="jobTitle"></div>
+      <div class="ff" data-automation-id="formField-company"><label for="co">Company<abbr title="required">*</abbr></label><input type="text" id="co" data-automation-id="company"></div>
+    </div></div>
+  <div data-automation-id="educationSection"><h3>Education</h3>
+    <div data-automation-id="education-1"><div class="ff" data-automation-id="formField-schoolName"><label for="sch">School or University</label><input type="text" id="sch" data-automation-id="school"></div></div></div>
+  <div data-automation-id="resumeUpload"><h3>Resume/CV</h3>
+    <div class="ff" data-automation-id="formField-resume"><label for="file">Resume/CV<abbr title="required">*</abbr></label>
+      <div data-automation-id="file-upload-drop-zone">Drop file here or <button type="button" id="selectFiles" data-automation-id="select-files">Select files</button></div>
+      <input type="file" id="file" data-automation-id="file-upload-input-ref">
+      <div id="files"></div></div></div>
+  <div class="ff" data-automation-id="formField-linkedin"><label for="li">LinkedIn</label><input type="text" id="li" data-automation-id="linkedinQuestion"></div>
+</section>
+
+<section id="step3" hidden>
+  <h2>Application Questions</h2>
+  <fieldset data-automation-id="formField-auth"><legend id="auth-l">Are you legally authorized to work in the United States?<abbr title="required">*</abbr></legend>
+    <label for="auth-y" style="display:inline"><input type="radio" name="auth" id="auth-y" value="y"> Yes</label>
+    <label for="auth-n" style="display:inline"><input type="radio" name="auth" id="auth-n" value="n"> No</label></fieldset>
+  <div class="ff" data-automation-id="formField-spons"><label for="spons">Will you now or in the future require sponsorship for employment visa status?<abbr title="required">*</abbr></label>
+    <button type="button" id="spons" aria-haspopup="listbox" data-automation-id="sponsorshipDropdown" data-opts="Yes|No">Select One</button></div>
+  <div class="ff" id="lic-ff" data-automation-id="formField-license" hidden><label for="lic">Do you hold an active RN license in the state of Massachusetts?<abbr title="required">*</abbr></label>
+    <button type="button" id="lic" aria-haspopup="listbox" data-automation-id="licenseDropdown" data-opts="Yes|No">Select One</button></div>
+</section>
+
+<section id="step4" hidden>
+  <h2>Voluntary Disclosures</h2>
+  <div class="ff" data-automation-id="formField-gender"><label for="gender">Gender<abbr title="required">*</abbr></label>
+    <button type="button" id="gender" aria-haspopup="listbox" data-automation-id="genderDropdown" data-opts="Male|Female|Non-binary|I do not wish to answer">Select One</button></div>
+  <div class="ff" data-automation-id="formField-hispanic"><label for="hisp">Are you Hispanic or Latino?<abbr title="required">*</abbr></label>
+    <button type="button" id="hisp" aria-haspopup="listbox" data-automation-id="hispanicDropdown" data-opts="Yes|No|I do not wish to answer">Select One</button></div>
+  <div class="ff" data-automation-id="formField-race"><label for="race">Race/Ethnicity<abbr title="required">*</abbr></label>
+    <button type="button" id="race" aria-haspopup="listbox" data-automation-id="raceDropdown" data-opts="Asian (Not Hispanic or Latino)|Black or African American (Not Hispanic or Latino)|White (Not Hispanic or Latino)|I do not wish to answer">Select One</button></div>
+  <div class="ff" data-automation-id="formField-veteran"><label for="vet">Veteran Status<abbr title="required">*</abbr></label>
+    <button type="button" id="vet" aria-haspopup="listbox" data-automation-id="veteranDropdown" data-opts="I identify as one or more of the classifications of protected veteran|I am not a protected veteran|I do not wish to answer">Select One</button></div>
+  <div class="ff" data-automation-id="formField-sms"><input type="checkbox" id="sms" data-automation-id="smsCheckbox"><label for="sms" style="display:inline">Yes, I would like to receive text message alerts about future openings</label></div>
+  <div class="ff" data-automation-id="formField-terms"><input type="checkbox" id="terms" data-automation-id="agreementCheckbox"><label for="terms" style="display:inline">I have read and agree to the Terms and Conditions<abbr title="required">*</abbr></label></div>
+</section>
+
+<section id="step5" hidden>
+  <h2>Self Identify</h2>
+  <fieldset data-automation-id="formField-disability"><legend>Disability Status<abbr title="required">*</abbr></legend>
+    <label for="d1" style="display:block"><input type="radio" name="disab" id="d1" value="yes"> Yes, I have a disability, or have had one in the past</label>
+    <label for="d2" style="display:block"><input type="radio" name="disab" id="d2" value="no"> No, I do not have a disability and have not had one in the past</label>
+    <label for="d3" style="display:block"><input type="radio" name="disab" id="d3" value="decline"> I do not want to answer</label></fieldset>
+</section>
+
+<section id="step6" hidden><h2>Review</h2><p id="sum">Please review your information before submitting.</p></section>
+
+<section id="done" hidden><h2 data-automation-id="applicationSubmitted">Application Submitted</h2><p>Thanks for applying. We have received your application.</p></section>
+
+<div id="nav" hidden><button type="button" id="next" data-automation-id="bottom-navigation-next-button">Save and Continue</button></div>
+</main>
+<script>
+ const params = new URLSearchParams(location.search);
+ window.__log = [];
+ const L = (k, v) => window.__log.push({k, v});
+ const $ = (id) => document.getElementById(id);
+ const SCEN = params.get('scenario') || '';
+ const STEPS = ['My Information', 'My Experience', 'Application Questions', 'Voluntary Disclosures', 'Self Identify', 'Review'];
+ let cur = 'job';
+
+ function show(id) {
+   for (const s of document.querySelectorAll('main > section')) s.hidden = !(s.id === id || (id === 'choice' && s.id === 'job'));
+   cur = id;
+   const m = id.match(/^step(\d)$/);
+   $('progress').hidden = !m; $('nav').hidden = !m; $('errs').hidden = true;
+   if (m) { const n = +m[1]; $('stepNo').textContent = `current step ${n} of 6`; $('stepName').textContent = STEPS[n - 1]; $('next').textContent = n === 6 ? 'Submit' : 'Save and Continue'; }
+   L('show', id);
+ }
+
+ // ---- dropdown buttons (aria-haspopup=listbox) and the multi-select search box
+ let openUl = null;
+ function closeList() { if (openUl) { openUl.remove(); openUl = null; } }
+ function openList(anchor, opts, pick) {
+   closeList();
+   const ul = document.createElement('ul'); ul.setAttribute('role', 'listbox'); ul.setAttribute('data-automation-id', 'activeListContainer');
+   const r = anchor.getBoundingClientRect(); ul.style.left = (r.left + scrollX) + 'px'; ul.style.top = (r.bottom + scrollY) + 'px';
+   for (const o of opts) { const li = document.createElement('li'); li.setAttribute('role', 'option'); li.setAttribute('data-automation-id', 'promptOption'); li.tabIndex = -1; li.textContent = o; li.onclick = (e) => { e.stopPropagation(); pick(o); closeList(); }; ul.appendChild(li); }
+   document.body.appendChild(ul); openUl = ul;
+ }
+ document.addEventListener('click', (e) => { if (openUl && !openUl.contains(e.target)) closeList(); });
+ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeList(); });
+ for (const b of document.querySelectorAll('button[aria-haspopup=listbox]')) {
+   b.onclick = (e) => { e.stopPropagation(); openList(b, b.dataset.opts.split('|'), (v) => { b.textContent = v; L('pick', {id: b.id, v}); }); };
+ }
+ const SRC = ['LinkedIn', 'Indeed', 'Company Website', 'Employee Referral'];
+ $('src').addEventListener('keydown', (e) => {
+   if (e.key !== 'Enter') return;
+   e.preventDefault();
+   const q = $('src').value.trim().toLowerCase();
+   openList($('src'), SRC.filter((o) => o.toLowerCase().includes(q)), (v) => {
+     const chip = document.createElement('div'); chip.setAttribute('data-automation-id', 'selectedItem'); chip.textContent = v; $('srcBox').insertBefore(chip, $('src')); $('src').value = ''; L('source', v);
+   });
+ });
+
+ // ---- controlled inputs: only real input events update state; anything else reverts on blur
+ const ctl = {};
+ for (const id of ['gn', 'zip']) {
+   const i = $(id); ctl[id] = '';
+   i.addEventListener('input', (e) => { if (e.isTrusted) ctl[id] = i.value; else L('UNTRUSTED_INPUT', id); });
+   i.addEventListener('blur', () => { i.value = ctl[id]; });
+ }
+ const txtVal = (id) => (id in ctl ? ctl[id] : $(id).value);
+ const btnVal = (id) => { const t = $(id).textContent.trim(); return t === 'Select One' ? '' : t; };
+
+ // ---- resume upload
+ let uploads = 0;
+ $('file').addEventListener('change', () => {
+   const f = $('file').files[0]; if (!f) return;
+   uploads++; L('upload', f.name);
+   $('files').innerHTML = '<div data-automation-id="file-upload-item"></div>';
+   $('files').firstChild.textContent = f.name;
+ });
+
+ // ---- seed state
+ if (SCEN !== 'empty_history') $('jt').value = 'Registered Nurse';
+ $('co').value = 'Mass General Brigham'; $('sch').value = 'Boston University';
+ if (SCEN === 'unknown_q') $('lic-ff').hidden = false;
+
+ // ---- validation / snapshots
+ const REQ = {
+   1: [['Source', () => $('srcBox').querySelectorAll('[data-automation-id=selectedItem]').length], ['Country', () => btnVal('country')], ['Given Name(s)', () => txtVal('gn')], ['Family Name', () => txtVal('fn')],
+       ['Address Line 1', () => txtVal('addr')], ['City', () => txtVal('city')], ['State', () => btnVal('state')], ['Postal Code', () => txtVal('zip')], ['Country Phone Code', () => btnVal('pcc')], ['Phone Number', () => txtVal('phone')]],
+   2: [['Job Title', () => txtVal('jt')], ['Company', () => txtVal('co')], ['Resume/CV', () => $('files').children.length]],
+   3: [['auth', () => document.querySelector('input[name=auth]:checked')], ['spons', () => btnVal('spons')], ...(SCEN === 'unknown_q' ? [['lic', () => btnVal('lic')]] : [])],
+   4: [['Gender', () => btnVal('gender')], ['Hispanic', () => btnVal('hisp')], ['Race', () => btnVal('race')], ['Veteran', () => btnVal('vet')], ['Terms', () => $('terms').checked]],
+   5: [['Disability', () => document.querySelector('input[name=disab]:checked')]],
+   6: [],
+ };
+ const checked = (n) => (document.querySelector(`input[name=${n}]:checked`) || {}).value || '';
+ const SNAP = {
+   1: () => ({src: [...$('srcBox').querySelectorAll('[data-automation-id=selectedItem]')].map((c) => c.textContent), country: btnVal('country'), gn: txtVal('gn'), fn: txtVal('fn'), pref: $('pref').checked, addr: txtVal('addr'), addr2: txtVal('addr2'), city: txtVal('city'),
+              state: btnVal('state'), zip: txtVal('zip'), device: btnVal('device'), pcc: btnVal('pcc'), phone: txtVal('phone'), ext: txtVal('ext')}),
+   2: () => ({jt: txtVal('jt'), co: txtVal('co'), sch: txtVal('sch'), resume: ($('files').firstChild || {}).textContent || '', uploads, li: txtVal('li')}),
+   3: () => ({auth: checked('auth'), spons: btnVal('spons'), lic: btnVal('lic')}),
+   4: () => ({gender: btnVal('gender'), hisp: btnVal('hisp'), race: btnVal('race'), vet: btnVal('vet'), sms: $('sms').checked, terms: $('terms').checked}),
+   5: () => ({disab: checked('disab')}),
+   6: () => ({}),
+ };
+
+ // ---- navigation
+ $('next').onclick = () => {
+   const n = +cur.slice(4);
+   const miss = REQ[n].filter(([, get]) => !get()).map(([name]) => name);
+   if (miss.length) { $('errs').textContent = 'Errors Found: ' + miss.join(', '); $('errs').hidden = false; L('invalid', {step: n, miss}); return; }
+   if (n === 6) { L('SUBMITTED', 1); show('done'); return; }
+   L('step' + n, SNAP[n]());
+   show('step' + (n + 1));
+ };
+ $('apply').onclick = (e) => { e.preventDefault(); L('click', 'apply'); show('choice'); };
+ $('manual').onclick = (e) => { e.preventDefault(); L('click', 'applyManually'); show(SCEN === 'signin' ? 'signin' : 'step1'); };
+ $('autofill').onclick = (e) => { e.preventDefault(); L('BAD_CLICK', 'autofillWithResume'); };
+ $('last').onclick = (e) => { e.preventDefault(); L('BAD_CLICK', 'useMyLastApplication'); };
+ for (const id of ['talent', 'alerts', 'si-google', 'hdr-signin']) $(id).onclick = (e) => { e.preventDefault(); L('FORBIDDEN_CLICK', id); };
+ $('si-create').onclick = (e) => { e.preventDefault(); L('BAD_CLICK', 'createAccount'); };
+ $('si-submit').onclick = () => L('BAD_CLICK', 'signIn');
+ for (const id of ['si-email', 'si-pw']) $(id).addEventListener('input', () => L('TYPED', id));
+ show(params.get('start') || 'job');
+</script>
+</body></html>

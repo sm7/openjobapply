@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- Local fixture imitating a Greenhouse job-board application. Nothing leaves the page.
+     ?scenario=code     -> after Submit a security-code screen (6 one-digit boxes; code 123456) appears, like boards that email a code
+     ?scenario=unknown  -> adds a required custom question that must NOT be guessed
+     ?scenario=captcha  -> a visible hCaptcha-style challenge frame appears on Submit
+     window.__log records actions (SUBMITTED, CHALLENGE, ...). -->
+<html lang="en"><head><meta charset="utf-8"><title>Job Application for Healthcare Data Analyst at Fixture Health</title>
+<style>body{font-family:sans-serif;padding:16px;max-width:680px;margin:auto}.f{margin:10px 0}label{display:block}[hidden]{display:none!important}.hp{position:absolute;left:-9999px}</style></head>
+<body>
+<div id="job"><h1>Healthcare Data Analyst</h1><button type="button" id="apply-top">Apply</button></div>
+<form id="application-form" hidden>
+  <h2>Apply for this job</h2>
+  <div class="f"><label for="first_name">First Name*</label><input id="first_name" name="first_name" required></div>
+  <div class="f"><label for="last_name">Last Name*</label><input id="last_name" name="last_name" required></div>
+  <div class="f"><label for="email">Email*</label><input id="email" name="email" type="email" required></div>
+  <div class="f"><label for="phone">Phone</label><input id="phone" name="phone" type="tel"></div>
+  <div class="f"><label for="resume">Resume/CV*</label><input id="resume" name="resume" type="file" required></div>
+  <div class="f"><label for="cover">Cover Letter</label><input id="cover" name="cover" type="file"></div>
+  <div class="f"><label for="li">LinkedIn Profile</label><input id="li" name="linkedin"></div>
+  <div class="f"><label for="q1">Are you legally authorized to work in the United States?*</label>
+    <select id="q1" required><option value="">Select...</option><option>Yes</option><option>No</option></select></div>
+  <div class="f"><label for="q2">Will you now or in the future require sponsorship for employment visa status?*</label>
+    <select id="q2" required><option value="">Select...</option><option>Yes</option><option>No</option></select></div>
+  <div class="f" id="unk" hidden><label for="q3">What is your EAD category code?*</label><input id="q3" required></div>
+  <div class="f hp" aria-hidden="true"><label for="trap">Leave this empty</label><input id="trap" name="honeypot" tabindex="-1"></div>
+  <h3>Voluntary Self-Identification</h3>
+  <div class="f"><label for="g">Gender</label><select id="g"><option value="">Select...</option><option>Male</option><option>Female</option><option>Decline To Self Identify</option></select></div>
+  <div class="f"><label for="h">Are you Hispanic/Latino?</label><select id="h"><option value="">Select...</option><option>Yes</option><option>No</option><option>Decline To Self Identify</option></select></div>
+  <div class="f"><label for="v">Veteran Status</label><select id="v"><option value="">Select...</option><option>I am not a protected veteran</option><option>I identify as one or more of the classifications of protected veteran</option><option>I don't wish to answer</option></select></div>
+  <div class="f"><label for="d">Disability Status</label><select id="d"><option value="">Select...</option><option>Yes, I have a disability, or have had one in the past</option><option>No, I do not have a disability and have not had one in the past</option><option>I do not want to answer</option></select></div>
+  <div class="f"><label><input type="checkbox" id="mk"> Yes, I want to receive recruiting marketing emails.</label></div>
+  <div id="err" role="alert" style="color:#b00"></div>
+  <button type="button" id="submit">Submit application</button>
+</form>
+<div id="codebox" hidden><h2>Security code</h2><p>Enter the verification code we emailed you.</p>
+  <div id="boxes"></div><button type="button" id="csubmit">Submit application</button></div>
+<div id="challenge" hidden><iframe title="hCaptcha challenge" style="width:300px;height:300px" srcdoc="<p>pick the buses</p>"></iframe></div>
+<div id="done" hidden><h2>Thank you for applying.</h2><p>Your application has been submitted.</p></div>
+<script>
+ window.__log = []; const L = (k,v)=>window.__log.push({k,v}); const $=id=>document.getElementById(id);
+ const sc = new URLSearchParams(location.search).get('scenario');
+ if (sc==='unknown') $('unk').hidden=false;
+ const showForm = () => { $('application-form').hidden=false; $('job').hidden=true; };
+ $('apply-top').onclick = showForm; if (new URLSearchParams(location.search).get('open')==='1') showForm();
+ for (let i=0;i<6;i++){ const b=document.createElement('input'); b.maxLength=1; b.size=1; b.setAttribute('aria-label','Security code digit '+(i+1)); b.oninput=()=>{ if(b.value && b.nextElementSibling) b.nextElementSibling.focus(); }; $('boxes').appendChild(b);}
+ $('submit').onclick = () => {
+   const miss = ['first_name','last_name','email','q1','q2'].filter(i=>!$(i).value.trim());
+   if (!$('resume').files.length) miss.push('resume'); if (sc==='unknown' && !$('q3').value.trim()) miss.push('q3');
+   if (miss.length) { $('err').textContent='Missing: '+miss.join(','); return; }
+   L('form', {fn:$('first_name').value, ln:$('last_name').value, em:$('email').value, ph:$('phone').value, resume:$('resume').files[0].name, cover:$('cover').files.length, li:$('li').value, auth:$('q1').value, spons:$('q2').value, g:$('g').value, h:$('h').value, v:$('v').value, d:$('d').value, mk:$('mk').checked, trap:$('trap').value});
+   if (sc==='captcha') { L('CHALLENGE',1); $('challenge').hidden=false; return; }
+   if (sc==='code') { $('application-form').hidden=true; $('codebox').hidden=false; L('CODE_SCREEN',1); return; }
+   L('SUBMITTED',1); $('application-form').hidden=true; $('done').hidden=false;
+ };
+ $('csubmit').onclick = () => { const c=[...document.querySelectorAll('#boxes input')].map(i=>i.value).join(''); L('code_entered',c); if (c==='123456'){ L('SUBMITTED',1); $('codebox').hidden=true; $('done').hidden=false; } };
+</script></body></html>

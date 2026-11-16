@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- Local fixture imitating an Ashby job page (jobs.ashbyhq.com/<company>/<id>): Overview/Application tabs and a single-page form
+     that loads asynchronously. Nothing leaves the page.
+     ?open=1           -> open on the Application tab
+     ?scenario=unknown -> adds a required custom question that must NOT be guessed
+     ?scenario=captcha -> a visible hCaptcha-style challenge frame appears on Submit
+     ?scenario=password-> the form asks for an account password (must stop: password_required)
+     window.__log records actions (SUBMITTED, CHALLENGE, ...). -->
+<html lang="en"><head><meta charset="utf-8"><title>Clinical Data Analyst @ Fixture Health</title>
+<style>body{font-family:sans-serif;padding:16px;max-width:680px;margin:auto}.f{margin:10px 0}label{display:block}[hidden]{display:none!important}</style></head>
+<body>
+<nav><a href="#" id="tab-overview">Overview</a> <a href="#" id="tab-app">Application</a></nav>
+<div id="overview"><h1>Clinical Data Analyst</h1><p>Fixture Health</p></div>
+<div id="loading" hidden>Fetching application form...</div>
+<form id="app" hidden onsubmit="return false">
+  <div class="f"><label for="autofill">Autofill from resume</label><input id="autofill" type="file"></div>
+  <div class="f"><label for="_systemfield_name">Name</label><input id="_systemfield_name" name="_systemfield_name" required></div>
+  <div class="f"><label for="_systemfield_email">Email</label><input id="_systemfield_email" name="_systemfield_email" type="email" required></div>
+  <div class="f"><label for="phone">Phone</label><input id="phone" type="tel"></div>
+  <div class="f"><label for="_systemfield_resume">Resume</label><input id="_systemfield_resume" name="_systemfield_resume" type="file" required></div>
+  <div class="f"><label for="li">LinkedIn</label><input id="li" type="url"></div>
+  <fieldset class="f"><legend>Are you legally authorized to work in the United States?</legend>
+    <label for="auth-labeled-radio-0"><input type="radio" id="auth-labeled-radio-0" name="auth" required> Yes</label>
+    <label for="auth-labeled-radio-1"><input type="radio" id="auth-labeled-radio-1" name="auth"> No</label></fieldset>
+  <fieldset class="f"><legend>Will you now or in the future require sponsorship for employment visa status?</legend>
+    <label for="sp-labeled-radio-0"><input type="radio" id="sp-labeled-radio-0" name="sp" required> Yes</label>
+    <label for="sp-labeled-radio-1"><input type="radio" id="sp-labeled-radio-1" name="sp"> No</label></fieldset>
+  <div class="f" id="unk" hidden><label for="q-unk">How many years of SAS experience do you have in oncology registries?</label><input id="q-unk" required></div>
+  <div class="f" id="pw" hidden><label for="pwd">Password</label><input id="pwd" type="password" required></div>
+  <h3>U.S. Equal Employment Opportunity Information</h3>
+  <div class="f"><label for="gender">Gender</label><select id="gender"><option value="">Select...</option><option>Male</option><option>Female</option><option>Decline to self-identify</option></select></div>
+  <div class="f"><label for="vet">Veteran Status</label><select id="vet"><option value="">Select...</option><option>I am a veteran</option><option>I am not a veteran</option><option>Decline to self-identify</option></select></div>
+  <div class="f"><label><input type="checkbox" id="privacy" required> I agree to the Privacy Policy</label></div>
+  <div class="f"><label><input type="checkbox" id="mk"> Send me marketing emails and job alerts about other roles.</label></div>
+  <div id="err" role="alert" style="color:#b00"></div>
+  <button type="submit" id="submit">Submit Application</button>
+</form>
+<div id="challenge" hidden><iframe title="hCaptcha challenge" style="width:300px;height:300px" srcdoc="<p>pick the buses</p>"></iframe></div>
+<div id="done" hidden><h2>Your application was successfully submitted.</h2><p>We'll contact you if there are next steps.</p></div>
+<script>
+ window.__log = []; const L = (k,v)=>window.__log.push({k,v}); const $=id=>document.getElementById(id);
+ const q = new URLSearchParams(location.search), sc = q.get('scenario');
+ if (sc==='unknown') $('unk').hidden=false;
+ if (sc==='password') $('pw').hidden=false;
+ const openApp = () => { $('overview').hidden=true; $('loading').hidden=false; setTimeout(()=>{ $('loading').hidden=true; $('app').hidden=false; }, 600); };
+ $('tab-app').onclick = e => { e.preventDefault(); openApp(); };
+ $('tab-overview').onclick = e => { e.preventDefault(); $('app').hidden=true; $('overview').hidden=false; };
+ if (q.get('open')==='1') openApp();
+ $('submit').onclick = () => {
+   const miss = [];
+   if (!$('_systemfield_name').value.trim()) miss.push('name');
+   if (!$('_systemfield_email').value.trim()) miss.push('email');
+   if (!$('_systemfield_resume').files.length) miss.push('resume');
+   if (!document.querySelector('input[name=auth]:checked')) miss.push('auth');
+   if (!document.querySelector('input[name=sp]:checked')) miss.push('sp');
+   if (!$('privacy').checked) miss.push('privacy');
+   if (sc==='unknown' && !$('q-unk').value.trim()) miss.push('q-unk');
+   if (miss.length) { $('err').textContent='Missing: '+miss.join(','); return; }
+   const on = n => { const r=document.querySelector('input[name='+n+']:checked'); return r ? r.id : null; };
+   L('form', {name:$('_systemfield_name').value, email:$('_systemfield_email').value, phone:$('phone').value, li:$('li').value, resume:$('_systemfield_resume').files[0].name, auth:on('auth'), sp:on('sp'), gender:$('gender').value, vet:$('vet').value, privacy:$('privacy').checked, mk:$('mk').checked});
+   if (sc==='captcha') { L('CHALLENGE',1); $('challenge').hidden=false; return; }
+   L('SUBMITTED',1); $('app').hidden=true; $('done').hidden=false;
+ };
+</script></body></html>

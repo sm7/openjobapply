@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- Local fixture imitating an iCIMS career-site wrapper page: the whole application lives inside
+     iframe#icims_content_iframe (div#iCIMS_MainWrapper). The query string is forwarded to the framed
+     page (icims_flow.html). Nothing leaves the machine. -->
+<html lang="en"><head><meta charset="utf-8"><title>Healthcare Data Analyst | Careers | Fixture Health</title>
+<style>body{font-family:sans-serif;margin:0;padding:12px}iframe{border:0;width:100%;height:1100px}</style></head>
+<body>
+<header><h2>Careers at Fixture Health</h2>
+  <a href="#" id="outer-talent" role="link">Join our Talent Network</a></header>
+<div id="iCIMS_MainWrapper" class="iCIMS_MainWrapper">
+  <iframe id="icims_content_iframe" name="icims_content_iframe" title="Job Content"></iframe>
+</div>
+<script>
+ const q = location.search || "?";
+ document.getElementById("icims_content_iframe").src = "icims_flow.html" + q + (q === "?" ? "" : "&") + "in_iframe=1";
+ document.getElementById("outer-talent").onclick = (e) => { e.preventDefault(); fetch("/__log", { method: "POST", body: JSON.stringify({ k: "FORBIDDEN_CLICK", v: "outer-talent" }) }); };
+</script></body></html>

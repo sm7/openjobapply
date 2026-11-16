@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- Fixture: employer sign-in. Default = email-only step, then password step; ?both=1 shows email + password together. -->
+<html lang="en"><head><meta charset="utf-8"><title>Sign in | Fixture Careers</title>
+<style>body{font-family:sans-serif;padding:16px} .ff{margin:10px 0} label{display:block;margin:6px 0 2px}</style></head>
+<body>
+<main>
+  <h1>Sign in</h1>
+  <p id="note"></p>
+  <div class="ff" id="emrow"><label for="em">Email Address</label><input id="em" type="email" name="email"></div>
+  <div class="ff" id="pwrow" hidden><label for="pw">Password</label><input id="pw" type="password" name="password"></div>
+  <p id="err" role="alert"></p>
+  <button type="button" id="next">Continue</button>
+  <button type="button" id="go" hidden>Sign In</button>
+  <button type="button" id="g">Sign in with Google</button>
+  <p id="forgotrow" hidden><a href="forgot.html" id="forgot">Forgot password?</a></p>
+  <p><a href="create.html" id="create">Create account</a></p>
+</main>
+<script src="fx.js"></script>
+<script>
+ const showPw = () => { $('pwrow').hidden = false; $('go').hidden = false; $('next').hidden = true; $('forgotrow').hidden = false; };
+ if (param('verified')) $('note').textContent = 'Your email is verified. Sign in to continue.';
+ if (param('reset')) $('note').textContent = 'Your password has been updated. Sign in with your new password.';
+ if (param('both')) showPw();
+ $('next').onclick = async () => {
+   const r = await post('/api/lookup', { email: $('em').value });
+   L('LOOKUP', r.exists ? 'exists' : 'missing');
+   if (r.exists) { $('emrow').hidden = true; showPw(); } else $('err').textContent = "We couldn't find an account with that email.";
+ };
+ $('go').onclick = async () => {
+   L('SUBMIT', 'signin');
+   const r = await post('/api/login', { email: $('em').value || (window.__email || ''), password: $('pw').value });
+   if (r.locked) { $('err').textContent = 'Your account is locked after too many failed attempts.'; return; }
+   if (!r.ok) { $('err').textContent = 'Incorrect email or password.'; return; }
+   location.href = r.mfa ? 'mfa.html' : 'app.html';
+ };
+ // the email step keeps its value after the email row is hidden
+ $('em').addEventListener('input', () => { window.__email = $('em').value; });
+</script>
+</body></html>

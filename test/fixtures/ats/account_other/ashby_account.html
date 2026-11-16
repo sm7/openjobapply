@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- Local fixture: an Ashby-like application page that needs an employer account. Nothing leaves the page.
+     default       -> the form shows a required Password field (account sign-in/creation) until window.__makeAccount() runs
+     ?wall=1       -> no form at all, only "Create an account to apply" until window.__makeAccount() runs
+     ?stuck=1      -> window.__makeAccount() only logs ACCOUNT_ATTEMPT; the wall never goes away (loop guard)
+     ?scenario=captcha -> a visible challenge frame appears on Submit
+     window.__makeAccount() is what the injected test stub calls in place of account.js (the page stands in for the site).
+     window.__log records actions (ACCOUNT_CREATED, ACCOUNT_ATTEMPT, SUBMITTED, CHALLENGE, ...). -->
+<html lang="en"><head><meta charset="utf-8"><title>Clinical Data Analyst @ Fixture Health</title>
+<style>body{font-family:sans-serif;padding:16px;max-width:680px;margin:auto}.f{margin:10px 0}label{display:block}[hidden]{display:none!important}</style></head>
+<body>
+<div id="wall" hidden><h2>Create an account to apply</h2><p>Fixture Health uses accounts for applications.</p></div>
+<form id="app" onsubmit="return false">
+  <div class="f"><label for="_systemfield_name">Name</label><input id="_systemfield_name" name="_systemfield_name" required></div>
+  <div class="f"><label for="_systemfield_email">Email</label><input id="_systemfield_email" name="_systemfield_email" type="email" required></div>
+  <div class="f"><label for="phone">Phone</label><input id="phone" type="tel"></div>
+  <div class="f"><label for="_systemfield_resume">Resume</label><input id="_systemfield_resume" name="_systemfield_resume" type="file" required></div>
+  <fieldset class="f"><legend>Are you legally authorized to work in the United States?</legend>
+    <label for="auth-labeled-radio-0"><input type="radio" id="auth-labeled-radio-0" name="auth" required> Yes</label>
+    <label for="auth-labeled-radio-1"><input type="radio" id="auth-labeled-radio-1" name="auth"> No</label></fieldset>
+  <fieldset class="f"><legend>Will you now or in the future require sponsorship for employment visa status?</legend>
+    <label for="sp-labeled-radio-0"><input type="radio" id="sp-labeled-radio-0" name="sp" required> Yes</label>
+    <label for="sp-labeled-radio-1"><input type="radio" id="sp-labeled-radio-1" name="sp"> No</label></fieldset>
+  <div class="f" id="pw"><label for="pwd">Password</label><input id="pwd" type="password" required></div>
+  <div class="f"><label><input type="checkbox" id="privacy" required> I agree to the Privacy Policy</label></div>
+  <div class="f"><label><input type="checkbox" id="mk"> Send me marketing emails and job alerts about other roles.</label></div>
+  <div id="err" role="alert" style="color:#b00"></div>
+  <button type="submit" id="submit">Submit Application</button>
+</form>
+<div id="challenge" hidden><iframe title="hCaptcha challenge" style="width:300px;height:300px" srcdoc="<p>pick the buses</p>"></iframe></div>
+<div id="done" hidden><h2>Your application was successfully submitted.</h2><p>We'll contact you if there are next steps.</p></div>
+<script>
+ window.__log = []; const L = (k,v)=>window.__log.push({k,v}); const $=id=>document.getElementById(id);
+ const q = new URLSearchParams(location.search), sc = q.get('scenario');
+ window.__acct = false;
+ if (q.get('wall')==='1') { $('app').hidden = true; $('wall').hidden = false; }
+ window.__makeAccount = () => {
+   if (q.get('stuck')==='1') { L('ACCOUNT_ATTEMPT',1); return; }
+   window.__acct = true; $('pw').hidden = true; $('wall').hidden = true; $('app').hidden = false; L('ACCOUNT_CREATED',1);
+ };
+ $('submit').onclick = () => {
+   const miss = [];
+   if (!$('_systemfield_name').value.trim()) miss.push('name');
+   if (!$('_systemfield_email').value.trim()) miss.push('email');
+   if (!$('_systemfield_resume').files.length) miss.push('resume');
+   if (!document.querySelector('input[name=auth]:checked')) miss.push('auth');
+   if (!document.querySelector('input[name=sp]:checked')) miss.push('sp');
+   if (!$('privacy').checked) miss.push('privacy');
+   if (!window.__acct) miss.push('account');
+   if (miss.length) { $('err').textContent='Missing: '+miss.join(','); return; }
+   L('form', {name:$('_systemfield_name').value, email:$('_systemfield_email').value, mk:$('mk').checked, privacy:$('privacy').checked});
+   if (sc==='captcha') { L('CHALLENGE',1); $('challenge').hidden=false; return; }
+   L('SUBMITTED',1); $('app').hidden=true; $('done').hidden=false;
+ };
+</script></body></html>

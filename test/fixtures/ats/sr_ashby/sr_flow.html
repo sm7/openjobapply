@@ -1,0 +1,74 @@
+<!doctype html>
+<!-- Local fixture imitating SmartRecruiters' flow: posting page -> "I'm interested" -> profile page (Next) -> questions page (Submit).
+     Nothing leaves the page.
+     ?start=profile    -> open directly on the profile page
+     ?scenario=unknown -> questions page gets a required custom question that must NOT be guessed
+     ?scenario=captcha -> a visible hCaptcha-style challenge frame appears on Submit
+     ?scenario=password-> the profile page also asks for an account password (must stop: password_required)
+     window.__log records actions (NEXT, SUBMITTED, CHALLENGE, ...). -->
+<html lang="en"><head><meta charset="utf-8"><title>Clinical Data Analyst - Fixture Health - SmartRecruiters</title>
+<style>body{font-family:sans-serif;padding:16px;max-width:680px;margin:auto}.f{margin:10px 0}label{display:block}[hidden]{display:none!important}</style></head>
+<body>
+<div id="posting"><h1>Clinical Data Analyst</h1><p>Fixture Health</p><a href="#" id="interested">I'm interested</a></div>
+
+<form id="p1" hidden onsubmit="return false">
+  <h2>Contact info</h2>
+  <div class="f"><label for="fn">First name*</label><input id="fn" name="firstName" required></div>
+  <div class="f"><label for="ln">Last name*</label><input id="ln" name="lastName" required></div>
+  <div class="f"><label for="em">Email*</label><input id="em" name="email" type="email" required></div>
+  <div class="f"><label for="em2">Confirm your email*</label><input id="em2" name="confirmEmail" type="email" required></div>
+  <div class="f"><label for="city">City*</label><input id="city" name="city" required></div>
+  <div class="f"><label for="ph">Phone</label><input id="ph" name="phone" type="tel"></div>
+  <div class="f"><label for="resume">Resume*</label><input id="resume" name="resume" type="file" required></div>
+  <div class="f"><label for="msg">Message to the hiring team</label><textarea id="msg" name="message"></textarea></div>
+  <div class="f" id="pw" hidden><label for="pwd">Password*</label><input id="pwd" name="password" type="password" required></div>
+  <div id="err1" role="alert" style="color:#b00"></div>
+  <button type="button" id="next">Next</button>
+</form>
+
+<form id="p2" hidden onsubmit="return false">
+  <h2>Questions</h2>
+  <fieldset class="f"><legend>Are you legally authorized to work in the United States?*</legend>
+    <label><input type="radio" name="auth" value="y" required> Yes</label><label><input type="radio" name="auth" value="n"> No</label></fieldset>
+  <div class="f"><label for="spons">Will you now or in the future require sponsorship for employment visa status?*</label>
+    <select id="spons" required><option value="">Select...</option><option>Yes</option><option>No</option></select></div>
+  <div class="f" id="unk" hidden><label for="epic">Describe your Epic Clarity experience.*</label><textarea id="epic" required></textarea></div>
+  <div class="f"><label for="gender">Gender</label><select id="gender"><option value="">Select...</option><option>Male</option><option>Female</option><option>I prefer not to say</option></select></div>
+  <div class="f"><label><input type="checkbox" id="privacy" required> I agree to the Privacy Policy*</label></div>
+  <div class="f"><label><input type="checkbox" id="mk"> I would like to receive marketing emails and information about other job opportunities.</label></div>
+  <div class="f"><label><input type="checkbox" id="tc"> Add me to the talent community for future openings.</label></div>
+  <div id="err2" role="alert" style="color:#b00"></div>
+  <button type="button" id="back">Back</button>
+  <button type="button" id="submit">Submit</button>
+</form>
+<div id="challenge" hidden><iframe title="hCaptcha challenge" style="width:300px;height:300px" srcdoc="<p>pick the buses</p>"></iframe></div>
+<div id="done" hidden><h2>Thank you for applying.</h2><p>Your application was submitted.</p></div>
+<script>
+ window.__log = []; const L = (k,v)=>window.__log.push({k,v}); const $=id=>document.getElementById(id);
+ const q = new URLSearchParams(location.search), sc = q.get('scenario');
+ if (sc==='unknown') $('unk').hidden=false;
+ if (sc==='password') $('pw').hidden=false;
+ const show = id => { for (const x of ['posting','p1','p2']) $(x).hidden = x!==id; };
+ $('interested').onclick = e => { e.preventDefault(); show('p1'); };
+ if (q.get('start')==='profile') show('p1');
+ $('back').onclick = () => show('p1');
+ $('next').onclick = () => {
+   const miss = ['fn','ln','em','em2','city'].filter(i=>!$(i).value.trim());
+   if (!$('resume').files.length) miss.push('resume');
+   if (miss.length) { $('err1').textContent='Please complete: '+miss.join(','); return; }
+   if ($('em').value !== $('em2').value) { $('err1').textContent='Emails do not match'; return; }
+   L('NEXT', {fn:$('fn').value, ln:$('ln').value, em:$('em').value, em2:$('em2').value, city:$('city').value, ph:$('ph').value, resume:$('resume').files[0].name, msg:$('msg').value});
+   show('p2');
+ };
+ $('submit').onclick = () => {
+   const miss = [];
+   if (!document.querySelector('input[name=auth]:checked')) miss.push('auth');
+   if (!$('spons').value) miss.push('spons');
+   if (!$('privacy').checked) miss.push('privacy');
+   if (sc==='unknown' && !$('epic').value.trim()) miss.push('epic');
+   if (miss.length) { $('err2').textContent='Please complete: '+miss.join(','); return; }
+   L('form', {auth:document.querySelector('input[name=auth]:checked').value, spons:$('spons').value, gender:$('gender').value, privacy:$('privacy').checked, mk:$('mk').checked, tc:$('tc').checked});
+   if (sc==='captcha') { L('CHALLENGE',1); $('challenge').hidden=false; return; }
+   L('SUBMITTED',1); $('p2').hidden=true; $('done').hidden=false;
+ };
+</script></body></html>

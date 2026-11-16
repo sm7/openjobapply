@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- Local fixture: a Workday sign-in / create-account wall reached with no session. The adapter must stop with
+     manual/account_required and must not type, click, or create anything. Events are mirrored into window.__log. -->
+<html lang="en"><head><meta charset="utf-8"><title>Sign In | Workday fixture</title>
+<style>body{font-family:sans-serif;padding:16px} .ff{margin:10px 0} label{display:block;margin:6px 0 2px}</style></head>
+<body>
+<main data-automation-id="signInContent">
+  <h1>Sign In</h1>
+  <div class="ff"><label for="email">Email Address*</label><input type="email" id="email" data-automation-id="email"></div>
+  <div class="ff"><label for="pw">Password*</label><input type="password" id="pw" data-automation-id="password"></div>
+  <button type="button" id="submit" data-automation-id="signInSubmitButton">Sign In</button>
+  <button type="button" id="google">Sign in with Google</button>
+  <p>Don't have an account? <a href="#" role="button" id="create" data-automation-id="createAccountLink">Create Account</a></p>
+</main>
+<script>
+ window.__log = [];
+ const L = (k, v) => window.__log.push({k, v});
+ const $ = (id) => document.getElementById(id);
+ $('submit').onclick = () => L('BAD_CLICK', 'signIn');
+ $('google').onclick = () => L('FORBIDDEN_CLICK', 'google');
+ $('create').onclick = (e) => { e.preventDefault(); L('BAD_CLICK', 'createAccount'); };
+ for (const id of ['email', 'pw']) $(id).addEventListener('input', () => L('TYPED', id));
+ document.addEventListener('click', (e) => L('click_any', e.target.id || e.target.tagName));
+</script>
+</body></html>

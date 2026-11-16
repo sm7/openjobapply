@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- Fixture: SMS multi-factor step. Must hand off to a human; nothing may be typed or clicked. -->
+<html lang="en"><head><meta charset="utf-8"><title>Verify it's you | Fixture Careers</title>
+<style>body{font-family:sans-serif;padding:16px} .ff{margin:10px 0} label{display:block;margin:6px 0 2px}</style></head>
+<body>
+<main>
+  <h1>Verify it's you</h1>
+  <p>We sent a text message with a 6-digit verification code to the phone ending in 4417.</p>
+  <div class="ff"><label for="code">Verification code</label><input id="code" name="code" autocomplete="one-time-code"></div>
+  <button type="button" id="go">Verify</button>
+</main>
+<script src="fx.js"></script>
+<script>
+ $('go').onclick = () => L('SUBMIT', 'mfa');
+ $('code').addEventListener('input', () => L('TYPED', 'code'));
+</script>
+</body></html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<!-- Local fixture imitating the ADP WorkforceNow career-center flow observed live:
+     job -> Apply -> Privacy Policy dialog -> Tell us about yourself -> verification code (choose, send, enter)
+     -> application steps -> review -> Submit -> thank-you.
+     Query: ?scenario=unknown_q adds a required free-text question the bot must refuse to guess.
+     State is mirrored into window.__log so tests can assert what was (not) clicked. NOTHING leaves the page. -->
+<html lang="en"><head><meta charset="utf-8"><title>Career Center | Recruitment</title>
+<style>
+ body{font-family:sans-serif;margin:0;padding:16px} .card{max-width:640px;margin:0 auto}
+ [hidden]{display:none!important} label{display:block;margin:8px 0 2px} .row{margin:6px 0}
+ dialog,.dialog{border:1px solid #888;padding:16px;background:#fff;max-width:520px;margin:16px auto}
+ .err{color:#b00}
+</style></head>
+<body>
+<header><button type="button" id="talent">Join Our Talent Community</button></header>
+<!-- ADP leaves the contact page's Continue control behind the verification overlay. -->
+<button type="button" id="background-continue" hidden>Continue</button>
+<div class="card">
+
+<section id="s-job" aria-label="Job">
+  <h1>Healthcare Data Analyst I</h1>
+  <p>Boston, MA. Full time.</p>
+  <button type="button" id="apply">Apply</button>
+</section>
+
+<section id="s-privacy" class="dialog" role="dialog" aria-label="Privacy Policy" hidden>
+  <h2>Privacy Policy</h2>
+  <p>We collect and process your personal data to evaluate your application. Information may be shared with service providers and third parties who process it on our behalf.</p>
+  <button type="button" id="consent">Consent &amp; Continue</button>
+  <button type="button" id="privacy-cancel">Cancel</button>
+</section>
+
+<section id="s-contact" hidden>
+  <h2>Tell us about yourself.</h2>
+  <div class="row"><label for="fn">First Name*</label><input id="fn" aria-label="First Name" required></div>
+  <div class="row"><label for="ln">Last Name*</label><input id="ln" aria-label="Last Name" required></div>
+  <div class="row"><label for="em">Email*</label><input id="em" aria-label="Email" type="email" required></div>
+  <div class="row"><label for="cc">Country</label><select id="cc" aria-label="Country code"><option>Canada</option><option selected>United States</option></select></div>
+  <div class="row"><label for="mob">Mobile Number*</label><input id="mob" aria-label="Mobile Number" placeholder="Phone Number" required></div>
+  <div id="contact-err" class="err" role="alert"></div>
+  <button type="button" id="contact-continue">Continue</button>
+  <hr><p>Alternatively, you can sign in through your social media accounts.</p>
+  <button type="button" id="sg">Sign in with Google</button>
+  <button type="button" id="sl">Sign in with LinkedIn</button>
+  <button type="button" id="sf">Sign in with Facebook</button>
+</section>
+
+<section id="s-vchoose" class="dialog" role="dialog" aria-label="Get your verification code" hidden>
+  <p>Where would you like to receive a verification code?</p>
+  <fieldset><legend class="sr" style="position:absolute;left:-9999px">Delivery method</legend>
+    <label><input type="radio" name="chan" value="sms"> +1-555-010-0199</label>
+    <label><input type="radio" name="chan" value="email"> jane.doe@example.com</label>
+  </fieldset>
+  <button type="button" id="vsend">Send</button>
+  <button type="button" id="vcancel">Cancel</button>
+</section>
+
+<section id="s-venter" class="dialog" role="dialog" aria-label="Enter verification code" hidden>
+  <h2>Enter your verification code</h2>
+  <label for="code">Verification code</label><input id="code" aria-label="Verification code" inputmode="numeric" autocomplete="one-time-code">
+  <div id="code-err" class="err" role="alert"></div>
+  <button type="button" id="vverify">Verify</button>
+  <button type="button" id="vresend">Resend code</button>
+</section>
+
+<section id="s-step1" hidden>
+ <p>The mobile number or email associated with this verification process is unique to you.</p>
+ <label for="saved-zip">Zip Code</label><input id="saved-zip" value="01101" readonly>
+  <h2>Resume and eligibility</h2>
+  <div class="row"><label for="resume">Upload your resume*</label><input type="file" id="resume" aria-label="Upload resume" required></div>
+  <fieldset class="row"><legend>Are you legally authorized to work in the United States?*</legend>
+    <label><input type="radio" name="auth" value="y" required> Yes</label>
+    <label><input type="radio" name="auth" value="n"> No</label></fieldset>
+  <fieldset class="row"><legend>Will you now or in the future require visa sponsorship for employment?*</legend>
+    <label><input type="radio" name="spons" value="y" required> Yes</label>
+    <label><input type="radio" name="spons" value="n"> No</label></fieldset>
+  <div class="row"><label for="loc">Location</label><input id="loc"></div>
+  <div class="row"><label for="phone-ext">Phone Extension</label><input id="phone-ext"></div>
+  <div class="row"><label for="web">Personal website</label><input id="web"></div>
+  <div id="uq" hidden><label for="yrs">How many years of SQL experience do you have?*</label><input id="yrs" required></div>
+  <div id="step1-err" class="err" role="alert"></div>
+  <button type="button" id="step1-next">Continue</button>
+</section>
+
+<section id="s-step2" hidden>
+  <h2>Voluntary self-identification</h2>
+  <div class="row"><label for="gender">Gender</label><select id="gender"><option value="">Select...</option><option>Female</option><option>Male</option><option>Non-binary</option><option>I do not wish to answer</option></select></div>
+  <div class="row"><label for="vet">Veteran status</label><select id="vet"><option value="">Select...</option><option>I am a protected veteran</option><option>I am not a veteran</option><option>I decline to self-identify</option></select></div>
+  <fieldset class="row"><legend>Race / Ethnicity</legend>
+    <label><input type="checkbox" name="race" value="a"> Asian</label>
+    <label><input type="checkbox" name="race" value="w"> White</label>
+    <label><input type="checkbox" name="race" value="d"> Decline to self identify</label></fieldset>
+  <div class="row"><label><input type="checkbox" id="truth" required> I certify that the information provided is true and accurate.*</label></div>
+  <div class="row"><label><input type="checkbox" id="alerts"> Send me job alerts and marketing emails.</label></div>
+  <div class="row"><label><input type="checkbox" id="bg"> I authorize a background check.</label></div>
+  <div id="step2-err" class="err" role="alert"></div>
+  <button type="button" id="step2-next">Continue</button>
+</section>
+
+<section id="s-review" hidden>
+  <h2>Review your application</h2>
+  <p id="review-sum"></p>
+  <button type="button" id="submit">Submit Application</button>
+</section>
+
+<section id="s-done" hidden><h2>Thank you for applying</h2><p>Your application has been submitted.</p></section>
+</div>
+<script>
+ const params = new URLSearchParams(location.search);
+ window.__log = [];
+ const L = (k, v) => window.__log.push({k, v});
+ const show = id => { for (const s of document.querySelectorAll('section')) s.hidden = s.id !== id; document.getElementById('background-continue').hidden = !['s-vchoose','s-venter'].includes(id); L('show', id); };
+ const $ = id => document.getElementById(id);
+ $('background-continue').onclick = () => L('FORBIDDEN_CLICK', 'background-continue');
+ if (params.get('scenario') === 'unknown_q') { $('uq').hidden = false; $('yrs').value = '99'; } // stale saved answer must still require review
+ if (params.get('privacy') === 'narrow') $('s-privacy').querySelector('p').textContent = 'We collect and process your personal data to evaluate your application.';
+ if (params.get('privacy') === 'unknown') $('s-privacy').querySelector('p').textContent = 'I agree to the Privacy Policy and ongoing location tracking.';
+ const startAt = params.get('start') || 's-job';
+ show(startAt);
+if (startAt === 's-contact') { $('fn').value='Jane'; $('ln').value='Doe'; $('em').value='jane.doe@example.com'; }
+ $('apply').onclick = () => { L('click','apply'); show('s-privacy'); };
+ $('consent').onclick = () => { L('click','consent'); show('s-contact'); };
+ $('privacy-cancel').onclick = () => show('s-job');
+ for (const id of ['talent','sg','sl','sf']) $(id).onclick = () => L('FORBIDDEN_CLICK', id);
+ $('contact-continue').onclick = () => {
+   const bad = ['fn','ln','em','mob'].filter(i => !$(i).value.trim());
+   if (bad.length) { $('contact-err').textContent = 'Please complete all required fields.'; return; }
+   L('contact', {fn:$('fn').value, ln:$('ln').value, em:$('em').value, mob:$('mob').value});
+   show('s-vchoose');
+ };
+ $('vsend').onclick = () => {
+   const c = document.querySelector('input[name=chan]:checked');
+   if (!c) return;
+   L('SEND_CODE', c.value); window.__sent = c.value; show('s-venter');
+ };
+ $('vcancel').onclick = () => show('s-contact');
+ $('vresend').onclick = () => L('RESEND_CODE', 1);
+ $('vverify').onclick = () => {
+   if ($('code').value.trim() === '123456') { L('verified', 1); show('s-step1'); }
+   else { $('code-err').textContent = 'That code is incorrect. Please try again.'; }
+ };
+ $('step1-next').onclick = () => {
+   const miss = [];
+   if (!$('resume').files.length) miss.push('resume');
+   if (!document.querySelector('input[name=auth]:checked')) miss.push('auth');
+   if (!document.querySelector('input[name=spons]:checked')) miss.push('spons');
+   if (!$('uq').hidden && !$('yrs').value.trim()) miss.push('yrs');
+   if (miss.length) { $('step1-err').textContent = 'Required: ' + miss.join(','); return; }
+   L('step1', {resume:$('resume').files[0].name, auth:document.querySelector('input[name=auth]:checked').value, spons:document.querySelector('input[name=spons]:checked').value, loc:$('loc').value, ext:$('phone-ext').value, web:$('web').value});
+   show('s-step2');
+ };
+ $('step2-next').onclick = () => {
+   if (!$('truth').checked) { $('step2-err').textContent = 'You must certify the information.'; return; }
+   L('step2', {gender:$('gender').value, vet:$('vet').value, race:[...document.querySelectorAll('input[name=race]:checked')].map(x=>x.value), truth:$('truth').checked, alerts:$('alerts').checked, bg:$('bg').checked});
+   $('review-sum').textContent = 'Please review before submitting.'; show('s-review');
+ };
+ $('submit').onclick = () => { L('SUBMITTED', 1); show('s-done'); };
+</script>
+</body></html>

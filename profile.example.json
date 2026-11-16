@@ -1,0 +1,175 @@
+{
+  "application_permissions": {
+    "account_creation": false,
+    "password_reset": false,
+    "google_sign_in": false,
+    "mailbox_verification": false
+  },
+  "application_instructions": [],
+  "candidate": {
+    "name": "",
+    "first_name": "",
+    "last_name": "",
+    "email": "",
+    "phone": "",
+    "location": "",
+    "resume_path": "data/resume.pdf",
+    "work_authorization": "",
+    "requires_sponsorship": null,
+    "us_citizen": null,
+    "green_card_holder": null,
+    "has_ead": null,
+    "ead_type": "",
+    "street": "",
+    "city": "",
+    "state": "",
+    "zip": "",
+    "country": "",
+    "authorization_notes": "",
+    "linkedin_url": ""
+  },
+  "preferences": {
+    "location_mode": "united_states",
+    "locations": [
+      "United States"
+    ],
+    "accept_remote": true,
+    "allow_senior_ic": null,
+    "employment_types": [
+      "permanent_full_time"
+    ],
+    "min_salary_usd": null,
+    "salary_expectation_usd": null,
+    "salary_range_rule": "midpoint",
+    "unknown_salary": "allow",
+    "max_travel_percent": null,
+    "willing_to_relocate": null,
+    "submit_mode": "auto",
+    "linkedin_geo_id": null
+  },
+  "search": {
+    "queries": [],
+    "title_include": [],
+    "title_exclude": [],
+    "skills": [],
+    "seniority_max_years_required": 8,
+    "core_title_words": [],
+    "role_words": ["analyst"],
+    "context_words": [],
+    "domain_words": [],
+    "title_out_of_lane": []
+  },
+  "sources": {
+    "linkedin": {
+      "enabled": true,
+      "requires_login": true
+    },
+    "indeed": {
+      "enabled": true,
+      "requires_login": false
+    }
+  },
+  "answers": {
+    "_note": "Fill every value you can confirm. null means unknown, and an unknown answer makes the worker stop and ask you. Never guess.",
+    "salary_expectation_usd": null,
+    "availability": "",
+    "currently_employed": null,
+    "last_employer": "",
+    "last_employment_ended": "",
+    "employment_gap_explanation": "",
+    "population_health_initiatives": null,
+    "it_operations": null,
+    "max_travel_percent": null,
+    "willing_to_relocate": null,
+    "additional_skills": [],
+    "factual_cover_letters_authorized": null,
+    "years_experience": {
+      "tableau": null,
+      "sql": null,
+      "sql window functions": null,
+      "window functions": null,
+      "databases": null,
+      "database": null,
+      "power bi": null,
+      "powerbi": null,
+      "microsoft power bi": null,
+      "excel": null,
+      "microsoft excel": null,
+      "sas": null,
+      "sas macro programming": null,
+      "sas macros": null,
+      "proc sql": null,
+      "sas proc sql": null,
+      "python": null,
+      "data analysis": null,
+      "data analytics": null,
+      "artificial intelligence": null,
+      "artificial intelligence (ai)": null,
+      "ai": null
+    },
+    "default_skill_years": null,
+    "education": {
+      "bachelors_degree": "",
+      "bachelors_degree_name": "",
+      "masters_degree_name": "",
+      "masters_degree_completed": null,
+      "additional_degrees": null,
+      "formal_equivalency_obtained": null
+    },
+    "demographics_when_no_decline_option": {
+      "hispanic_or_latino": null,
+      "veteran": null,
+      "_note": ""
+    },
+    "relationship_with_employees": null,
+    "secondary_employment_intended": null,
+    "employee_relationship_name_followup": "",
+    "previously_worked_at_prospective_employer": null,
+    "excluded_from_federal_health_programs": null,
+    "spouse_or_partner_of_us_military": null,
+    "prior_government_employment": null,
+    "professional_license_disciplinary_action": null,
+    "prior_interviews_by_company": {
+      "Acme Medical Devices": null,
+      "Globex Life Sciences": null,
+      "Initech Medicine Group": null,
+      "Initech Analytics": null
+    },
+    "restrictive_employer_agreements": null,
+    "federal_contracting_debarment_or_suspension": null,
+    "government_program_related_criminal_conviction": null,
+    "at_least_18": null,
+    "public_trust_ever_held": null,
+    "python_or_r_in_current_or_most_recent_role": null,
+    "python_libraries_used": {
+      "pandas": null,
+      "numpy": null,
+      "scikit-learn": null,
+      "seaborn": null,
+      "matplotlib": null
+    },
+    "databricks_advanced_sql_large_datasets": null,
+    "built_or_owned_business_kpis": null,
+    "analyses_driven_business_outcomes": null,
+    "business_outcome_example": "",
+    "presented_to_senior_leadership": null,
+    "built_or_maintained_automated_data_integrations": null,
+    "independently_managed_remote_deliverables": null,
+    "vba_experience": null,
+    "referred_by_anyone": null,
+    "partnered_with_client_success_or_experience_teams": null,
+    "client_team_partnership_example": "",
+    "consents": {
+      "employment_background_check": null,
+      "employment_drug_screening": null,
+      "employment_credit_check": null,
+      "application_status_text_messages": null,
+      "marketing": null,
+      "future_opportunity_retention_contact": null,
+      "government_criminal_records_release": null,
+      "liability_waiver": null
+    },
+    "past_employers": [],
+    "reviewed_questions": {}
+  }
+}
